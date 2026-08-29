@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+# MANUAL ONLY, ON PURPOSE.
+#
+# This repository is private, and GitHub Pages does not publish from a private
+# repository on the free plan. If this workflow ran on every push it would fail
+# on every push, and a repository whose checks are permanently red is one where
+# nobody notices the check that actually matters.
+#
+# TO GO LIVE, in this order:
+#   1. Settings -> Pages -> Source: "GitHub Actions"
+#      (only offered once the repo is public, or the org is on a paid plan)
+#   2. Uncomment the `push` trigger below and commit.
+#
+# The site is plain static files with relative paths throughout, so it works
+# unchanged at https://nexora-11-1.github.io/Aapda_sync/ — no base-href
+# rewriting, no build step.
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; never cancel one half-finished.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail here rather than serving a broken site: if any bundle is missing or
+      # unparseable, the deploy should not happen.
+      - name: Check every script parses
+        run: |
+          set -e
+          for f in src/*.js; do node --check "$f"; done
+          test -f index.html
+          test -f src/photos-bundled.js
+          echo "all scripts parse"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

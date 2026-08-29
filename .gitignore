@@ -1,0 +1,17 @@
+# Build scratch
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local-only outputs. The single-file build IS committed (it is the easiest way
+# to hand the prototype to someone who will not clone), but transient renders,
+# contact sheets and zips are not.
+/tmp/
+*.zip
+contact.png

@@ -1,0 +1,60 @@
+name: Check
+
+# This one DOES run on every push, because it costs seconds and it catches the
+# failure mode this project is most exposed to: the whole app is classic scripts
+# with no bundler and no module system, so a syntax error in one file is a blank
+# page at the demo, not a build error at your desk.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Every script parses
+        run: |
+          set -e
+          for f in src/*.js; do node --check "$f"; done
+          echo "$(ls src/*.js | wc -l) scripts parse"
+
+      - name: Every script index.html loads exists
+        run: |
+          set -e
+          missing=0
+          for f in $(grep -o 'src="src/[^"]*"' index.html | sed 's/src="//;s/"//'); do
+            [ -f "$f" ] || { echo "MISSING: $f"; missing=1; }
+          done
+          [ "$missing" = "0" ] && echo "every referenced script is present"
+          exit $missing
+
+      - name: Load order is sound
+        # app.js must load last: it boots on DOMContentLoaded and reads every
+        # other global. views.js must come after the data it renders.
+        run: |
+          set -e
+          order=$(grep -o 'src="src/[^"]*"' index.html | sed 's|src="src/||;s|"||')
+          last=$(echo "$order" | tail -1)
+          [ "$last" = "app.js" ] || { echo "app.js must load last, got $last"; exit 1; }
+          echo "$order" | grep -q '^data.js$' || { echo "data.js not loaded"; exit 1; }
+          echo "load order ok — app.js last"
+
+      - name: No absolute asset paths
+        # The site is served from /aapdasync/ on Pages, so a leading-slash path
+        # would 404 there while working perfectly on file:// and localhost —
+        # the worst kind of bug to find on demo day.
+        run: |
+          set -e
+          if grep -nE '(src|href)="/[^/]' index.html; then
+            echo "absolute path found — would break under a project Pages subpath"
+            exit 1
+          fi
+          echo "all asset paths are relative"
