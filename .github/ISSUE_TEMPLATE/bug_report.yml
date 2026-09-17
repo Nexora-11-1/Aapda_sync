@@ -1,0 +1,75 @@
+name: Bug report
+description: Something behaves differently from what the documentation says it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **If this is a security issue, stop.** Do not file it here — use
+        Security → Advisories → Report a vulnerability. See `SECURITY.md`.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Standalone dashboard (frontend/dist/aapdasync.html)
+        - Hosted site (GitHub Pages)
+        - Frontend served by docker compose
+        - API (backend/app/api)
+        - Worker / pipeline (orchestrator, ingestion)
+        - A data-source connector
+        - Build or CI
+        - Docs
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead.
+      placeholder: |
+        1. Opened …
+        2. Clicked …
+        3. Expected … but saw …
+    validations:
+      required: true
+
+  - type: textarea
+    id: figure
+    attributes:
+      label: Is a displayed number involved?
+      description: >
+        If a figure on screen looks wrong, give the screen, the figure, and what
+        you believe it should be. Say whether the pipeline health badge was
+        healthy at the time, and what age the dashboard was reporting.
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      value: |
+        - How it was running: docker compose / single file opened directly / hosted page
+        - Browser and version:
+        - OS:
+        - Commit or release:
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console or log output
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: I checked `docs/12-audit-and-limitations.md` — this is not something already documented as not built.
+          required: true
+        - label: No credential, token or `.env` content appears anywhere in this report.
+          required: true

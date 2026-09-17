@@ -1,0 +1,61 @@
+name: Data source — add, fix or dispute
+description: A feed is wrong, has moved, is mislabelled, or should be added.
+labels: ["data-source"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `docs/10-data-sources.md` is the only place in this repository where a
+        source URL may be asserted. Connectors read theirs from configuration.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this
+      options:
+        - A source is returning wrong or unexpected data
+        - A source has moved, changed format, or gone away
+        - A source is mislabelled — the UI names an authority it is not reading
+        - A new source should be added
+        - A source is marked NOT_CONFIGURED but should be reachable
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      placeholder: IMD · NDMA SACHET · CWC · NRSC · INCOIS · NCS · USGS · Open-Meteo · FIRMS · GloFAS · OSM · WorldPop · other
+    validations:
+      required: true
+
+  - type: input
+    id: hazard
+    attributes:
+      label: Hazard affected
+      placeholder: flood, landslide, cyclone, earthquake, heat, fire, lightning, drought, industrial
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Detail
+      description: >
+        What you observed, and what it should be. For a mislabelling, say which
+        authority the UI claims and which feed it is actually reading — a
+        supplementary source must never be relabelled as the authority it stands
+        in for.
+    validations:
+      required: true
+
+  - type: textarea
+    id: probe
+    attributes:
+      label: Output of the source probe
+      description: "`cd backend && python scripts/check_sources.py`"
+      render: text
+
+  - type: input
+    id: access
+    attributes:
+      label: Access route
+      description: Registration, key, rate limit, terms of use. Do not paste the key itself.

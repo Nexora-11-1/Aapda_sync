@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Nexora-11-1/Aapda_sync/security/advisories/new
+    about: Report privately. Never in a public issue.
+  - name: What is honestly not built yet
+    url: https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/12-audit-and-limitations.md
+    about: Check here first — the known gaps are written down, in detail.
+  - name: Data source register
+    url: https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/10-data-sources.md
+    about: Every source, its real access route, and what it needs.
