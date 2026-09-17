@@ -1,0 +1,74 @@
+name: Bootstrap — replace the tree from _payload.zip
+
+# One-shot, manually triggered. Replaces every tracked file outside
+# .github/ with the contents of _payload.zip, then removes the payload.
+#
+# .github/ is left alone on purpose: GITHUB_TOKEN is not permitted to create,
+# update or delete workflow files, so those are maintained through the web UI.
+#
+# Safe to delete this file once it has run.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack the payload
+        run: |
+          set -euo pipefail
+          test -f _payload.zip || { echo "::error::_payload.zip is not at the repository root"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/payload"
+          unzip -q _payload.zip -d "$RUNNER_TEMP/payload"
+          if [ -d "$RUNNER_TEMP/payload/.github" ]; then
+            echo "::error::the payload carries .github/ — it must not, GITHUB_TOKEN cannot write workflow files"
+            exit 1
+          fi
+          echo "payload contains $(find "$RUNNER_TEMP/payload" -type f | wc -l) files"
+
+      - name: Replace the tree
+        run: |
+          set -euo pipefail
+          # Every tracked file except .github/ goes.
+          git ls-files -z | grep -zv '^\.github/' | xargs -0 -r rm -f
+          rm -f _payload.zip
+          cp -a "$RUNNER_TEMP/payload/." .
+          # Leave no empty directories behind from the old layout.
+          find . -type d -empty -not -path './.git/*' -not -path './.github/*' -delete || true
+
+      - name: Show what changed
+        run: |
+          git add -A
+          git status --short | head -200
+          echo "---"
+          git status --short | wc -l
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "nothing to commit"; exit 0
+          fi
+          git commit -m "Replace the prototype with the AapdaSync platform build
+
+The repository now holds the full stack — FastAPI backend, ingestion
+connectors for nine hazards, the H3 risk/exposure/capacity/routing chain,
+and the single-file dashboard — in place of the earlier single-page
+prototype.
+
+The prototype is preserved on the legacy-prototype branch.
+
+Added alongside the build, changing no application source:
+  LICENSE, NOTICE.md, CONTRIBUTING.md, SECURITY.md
+  docs/00-index.md
+  site/index.html   the project page published to GitHub Pages
+  .github/          Pages workflow and issue/PR templates"
+          git push

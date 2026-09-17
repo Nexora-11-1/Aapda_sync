@@ -1,58 +1,74 @@
-name: Deploy to GitHub Pages
+name: Pages
 
-# MANUAL ONLY, ON PURPOSE.
+# Publishes two things:
+#   /        the project page (site/index.html)
+#   /app/    the single-file dashboard, rebuilt from source on every deploy
 #
-# This repository is private, and GitHub Pages does not publish from a private
-# repository on the free plan. If this workflow ran on every push it would fail
-# on every push, and a repository whose checks are permanently red is one where
-# nobody notices the check that actually matters.
-#
-# TO GO LIVE, in this order:
-#   1. Settings -> Pages -> Source: "GitHub Actions"
-#      (only offered once the repo is public, or the org is on a paid plan)
-#   2. Uncomment the `push` trigger below and commit.
-#
-# The site is plain static files with relative paths throughout, so it works
-# unchanged at https://nexora-11-1.github.io/Aapda_sync/ — no base-href
-# rewriting, no build step.
+# The dashboard is rebuilt rather than copied from frontend/dist so that what is
+# served is provably the output of the committed sources, not a stale artefact.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  # push:
-  #   branches: [main]
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# One deploy at a time; never cancel one half-finished.
+# One deployment at a time. Do not cancel a run that is mid-deploy.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: Syntax-check every script
+        working-directory: frontend/standalone
+        run: for f in src/*.js assets/*.js build.js; do node --check "$f"; done
+
+      - name: Build the single-file dashboard
+        working-directory: frontend/standalone
+        run: node build.js
+
+      - name: Fail if any asset was left un-inlined
+        run: |
+          ! grep -q '<script src=\|<link rel="stylesheet" href=' frontend/dist/aapdasync.html
+
+      - name: Assemble the site
+        run: |
+          set -e
+          mkdir -p _site/app
+          cp site/index.html            _site/index.html
+          cp frontend/dist/aapdasync.html _site/app/index.html
+          # Also reachable under its own name, for anyone linking the file directly.
+          cp frontend/dist/aapdasync.html _site/app/aapdasync.html
+          cp site/index.html            _site/404.html
+          touch _site/.nojekyll
+          echo "Site contents:"; find _site -type f -printf '%10s  %p\n'
+
+      - name: The published page must carry the standing caveat
+        run: |
+          grep -q "not an official warning" _site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-
-      # Fail here rather than serving a broken site: if any bundle is missing or
-      # unparseable, the deploy should not happen.
-      - name: Check every script parses
-        run: |
-          set -e
-          for f in src/*.js; do node --check "$f"; done
-          test -f index.html
-          test -f src/photos-bundled.js
-          echo "all scripts parse"
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
       - id: deployment
         uses: actions/deploy-pages@v4
