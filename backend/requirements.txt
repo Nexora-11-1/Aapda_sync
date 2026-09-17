@@ -1,0 +1,47 @@
+# ── web ───────────────────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+python-multipart==0.0.20
+
+# ── config and validation ─────────────────────────────────────────────
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# ── database ──────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+psycopg[binary]==3.2.3
+alembic==1.14.0
+geoalchemy2==0.16.0
+
+# ── cache and bus. Kafka is a later swap; Redis carries the MVP (§5) ──
+redis[hiredis]==5.2.1
+
+# ── HTTP ──────────────────────────────────────────────────────────────
+httpx[http2]==0.28.1
+tenacity==9.0.0
+
+# ── spatial ───────────────────────────────────────────────────────────
+h3==4.2.1
+shapely==2.0.6
+pyproj==3.7.0
+rasterio==1.4.3
+
+# ── ML. LightGBM is the production learner; scikit-learn provides the
+#    baseline every candidate must beat, plus isotonic calibration ─────
+numpy==2.2.1
+pandas==2.2.3
+scikit-learn==1.6.0
+lightgbm==4.5.0
+shap==0.46.0
+joblib==1.4.2
+
+# ── security ──────────────────────────────────────────────────────────
+pyjwt[crypto]==2.10.1
+passlib[argon2,bcrypt]==1.7.4
+argon2-cffi==23.1.0
+
+# ── observability ─────────────────────────────────────────────────────
+prometheus-client==0.21.1
+structlog==24.4.0

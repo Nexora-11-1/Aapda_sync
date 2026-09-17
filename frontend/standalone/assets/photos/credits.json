@@ -1,0 +1,80 @@
+{
+  "_readme": [
+    "Drop a photograph in this folder named after the event id, e.g. kedar13.webp,",
+    "then add its credit here and run `node build.js`. The build inlines it as a",
+    "data URI and the slide switches from the drawn illustration to the photograph,",
+    "with the credit line you give below printed under it.",
+    "",
+    "Event ids: latur, odisha99, tsunami04, mumbai05, kedar13, hw15, chennai15,",
+    "kerala18, josh23, wayanad24.",
+    "",
+    "Per-entry fields:",
+    "  credit    required — who took it. No credit, no photograph.",
+    "  licence   required — the licence it is published under.",
+    "  source    optional — where the file came from.",
+    "  verified  optional — false marks an attribution that has NOT been checked",
+    "            against the source file page. The photograph still renders, but",
+    "            its caption says so and the build prints a reminder. Set it true",
+    "            once you have opened the file page and confirmed the line above.",
+    "  w, h      optional — the pixel size, so the markup can reserve the box and",
+    "            the hero can skip a source too small to fill it.",
+    "  tone      optional — the image's dominant colour, painted behind it while",
+    "            it decodes so nothing flashes.",
+    "",
+    "Only use images you have the right to publish. Public-domain government",
+    "imagery (ISRO, NRSC, NASA, NOAA, NDRF, PIB) and Creative Commons photographs",
+    "on Wikimedia Commons are the usual sources; both require the attribution below",
+    "to be filled in accurately. A slide with no entry here keeps its illustration,",
+    "which is labelled as one — an unattributed photograph presented as documentary",
+    "is the one thing this project will not do.",
+    "",
+    "NOT SHIPPED, DELIBERATELY: the supplied Latur 1993 photograph shows a casualty",
+    "in the rubble. This platform's own rule for the memorial is that it shows the",
+    "ground and the weather and never the dying, and a photograph of a dead person",
+    "on an autoplaying public slideshow breaks it. That slide keeps its illustration."
+  ],
+  "photos": {
+    "odisha99": {
+      "credit": "NOAA",
+      "licence": "Public domain — work of the United States federal government",
+      "source": "Wikimedia Commons · File:Cyclone 05B.jpg",
+      "verified": true,
+      "w": 1024, "h": 902, "tone": "#c8c8c8"
+    },
+    "mumbai05": {
+      "credit": "Wikimedia Commons contributor — see the file page",
+      "licence": "CC BY-SA — confirm the exact version on the file page",
+      "source": "Wikimedia Commons · File:Kalyan Railway Station During Floods.jpg",
+      "verified": false,
+      "w": 512, "h": 384, "tone": "#b8a898"
+    },
+    "kedar13": {
+      "credit": "Press Information Bureau, Government of India",
+      "licence": "GODL-India — confirm on the file page",
+      "source": "Wikimedia Commons · File:Rescue and relief operations by Armed forces, at Gauri Kund, in Kedarnath valley, Uttarakhand (1).jpg",
+      "verified": false,
+      "w": 1120, "h": 803, "tone": "#282828"
+    },
+    "chennai15": {
+      "credit": "Wikimedia Commons contributor — see the file page",
+      "licence": "CC BY-SA — confirm the exact version on the file page",
+      "source": "Wikimedia Commons · File:Chennai flood water logging near ofice nandanam4.jpg",
+      "verified": false,
+      "w": 1280, "h": 720, "tone": "#f8f8f8"
+    },
+    "kerala18": {
+      "credit": "Wikimedia Commons contributor — see the file page",
+      "licence": "CC BY-SA — confirm the exact version on the file page",
+      "source": "Wikimedia Commons · File:Flood in kerala 2018.jpg",
+      "verified": false,
+      "w": 1280, "h": 960, "tone": "#c8c8c8"
+    },
+    "wayanad24": {
+      "credit": "Wikimedia Commons contributor — see the file page",
+      "licence": "CC BY-SA — confirm the exact version on the file page",
+      "source": "Wikimedia Commons · File:Remnants of 2024 Wayanad landslides disaster at Mundakkai.jpg",
+      "verified": false,
+      "w": 900, "h": 675, "tone": "#b8c8d8"
+    }
+  }
+}

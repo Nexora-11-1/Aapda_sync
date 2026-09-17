@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AapdaSync</title>
+<meta name="description" content="India-specific multi-disaster risk, exposure and evacuation decision-support. Nine hazards, 36 states and union territories, running with no credentials at all.">
+<meta name="color-scheme" content="dark">
+<meta property="og:title" content="AapdaSync">
+<meta property="og:description" content="Hazard risk, physical exposure, carrying capacity and evacuation routing — resolved into one decision, and honest about what it does not know.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070c12'/%3E%3Cpath d='M16 5 4 27h24z' fill='none' stroke='%2322d3ee' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M16 13v7' stroke='%23f2b134' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23.4' r='1.35' fill='%23f2b134'/%3E%3C/svg%3E">
+
+<style>
+:root{
+  --bg:#060a0f; --surface:#0c131b; --surface-2:#111a24; --raised:#16212c;
+  --line:#1c2a38; --line-soft:#152029;
+  --text:#e3ebf3; --muted:#93a5b7; --dim:#637689;
+  --derived:#22d3ee; --declared:#f2b134; --alert:#ff5c47; --ok:#3ddc97;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,"Helvetica Neue",Arial,sans-serif;
+  --maxw:1120px;
+  --r:10px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:16px; line-height:1.65;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+/* The product renders "no data" as a hatched fill rather than a safe green
+   cell. The same hatch is this page's texture. */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+  background:
+    radial-gradient(1100px 620px at 76% -8%, rgba(34,211,238,.10), transparent 62%),
+    radial-gradient(820px 520px at 4% 8%, rgba(242,177,52,.055), transparent 60%);
+}
+main,header,footer{position:relative; z-index:1}
+a{color:var(--derived); text-decoration:none}
+a:hover{text-decoration:underline; text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--derived); outline-offset:3px; border-radius:4px}
+h1,h2,h3{line-height:1.18; letter-spacing:-.022em; margin:0; text-wrap:balance}
+p{margin:0}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 20px}
+.mono{font-family:var(--mono)}
+
+/* ── kicker ───────────────────────────────────────────── */
+.kicker{
+  font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--dim); display:flex; align-items:center; gap:10px; margin-bottom:18px;
+}
+.kicker::after{content:""; height:1px; flex:1; background:linear-gradient(90deg,var(--line),transparent)}
+
+/* ── header ───────────────────────────────────────────── */
+header{
+  position:sticky; top:0; z-index:50; backdrop-filter:blur(14px);
+  background:rgba(6,10,15,.82); border-bottom:1px solid var(--line-soft);
+}
+.navbar{display:flex; align-items:center; gap:14px; height:60px}
+.brand{display:flex; align-items:center; gap:10px; font-weight:650; letter-spacing:-.02em; color:var(--text); font-size:15.5px}
+.brand:hover{text-decoration:none}
+.brand svg{flex:none}
+nav.top{display:flex; gap:22px; margin-left:auto; font-size:13.5px; color:var(--muted)}
+nav.top a{color:var(--muted)}
+nav.top a:hover{color:var(--text); text-decoration:none}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; border-radius:8px;
+  padding:9px 16px; font-size:14px; font-weight:560; white-space:nowrap;
+  border:1px solid var(--line); color:var(--text); background:var(--surface-2);
+  transition:border-color .15s, background .15s, transform .15s;
+}
+.btn:hover{border-color:#2b3d4f; background:var(--raised); text-decoration:none}
+.btn-primary{
+  background:linear-gradient(180deg,#1ec7dd,#12a7bd); color:#02222a;
+  border-color:transparent; font-weight:650;
+}
+.btn-primary:hover{background:linear-gradient(180deg,#3ad8ec,#17b5cc); transform:translateY(-1px)}
+.btn-sm{padding:7px 13px; font-size:13px}
+@media(max-width:860px){ nav.top{display:none} .navbar .btn-primary{margin-left:auto} }
+
+/* ── hero ─────────────────────────────────────────────── */
+.hero{padding-top:88px; padding-bottom:56px}
+.hero h1{font-size:clamp(34px,5.6vw,60px); font-weight:680; letter-spacing:-.035em; max-width:17ch}
+.hero h1 em{font-style:normal; color:var(--derived)}
+.lede{margin-top:24px; font-size:clamp(16.5px,1.9vw,19px); color:var(--muted); max-width:62ch}
+.lede strong{color:var(--text); font-weight:580}
+.cta{display:flex; flex-wrap:wrap; gap:12px; margin-top:34px}
+
+/* the standing caveat — a first-class element, never fine print */
+.caveat{
+  margin-top:40px; border:1px solid rgba(242,177,52,.34); border-radius:var(--r);
+  background:
+    repeating-linear-gradient(135deg, rgba(242,177,52,.055) 0 6px, transparent 6px 12px),
+    rgba(242,177,52,.04);
+  padding:18px 20px; display:flex; gap:15px; align-items:flex-start; max-width:78ch;
+}
+.caveat svg{flex:none; margin-top:2px}
+.caveat p{font-size:14.5px; color:#e8d9b6}
+.caveat b{color:var(--declared); font-weight:640}
+.caveat .src{display:block; margin-top:7px; color:#a9a288; font-size:13.2px}
+
+/* stat rail */
+.rail{
+  display:grid; grid-template-columns:repeat(4,1fr); gap:1px; margin-top:52px;
+  background:var(--line-soft); border:1px solid var(--line-soft); border-radius:var(--r); overflow:hidden;
+}
+.rail div{background:var(--surface); padding:20px 18px}
+.rail .n{font-family:var(--mono); font-size:27px; font-weight:600; color:var(--derived); letter-spacing:-.02em}
+.rail .l{font-size:12.8px; color:var(--muted); margin-top:5px; line-height:1.45}
+@media(max-width:700px){ .rail{grid-template-columns:repeat(2,1fr)} .hero{padding-top:56px; padding-bottom:40px} }
+
+/* ── sections ─────────────────────────────────────────── */
+section{padding:72px 0; border-top:1px solid var(--line-soft)}
+.sec-h{font-size:clamp(23px,3.1vw,31px); font-weight:640; letter-spacing:-.028em; max-width:24ch}
+.sec-p{margin-top:16px; color:var(--muted); max-width:66ch; font-size:16px}
+
+/* two-column contrast: derived vs declared */
+.split{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:38px}
+.panel{border:1px solid var(--line); border-radius:var(--r); background:var(--surface); padding:24px; position:relative; overflow:hidden}
+.panel::before{content:""; position:absolute; inset:0 0 auto 0; height:2px}
+.panel.derived::before{background:var(--derived)}
+.panel.declared::before{background:var(--declared)}
+.panel.declared{
+  background:
+    repeating-linear-gradient(135deg, rgba(242,177,52,.05) 0 5px, transparent 5px 10px),
+    var(--surface);
+}
+.tag{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.15em; text-transform:uppercase;
+  padding:3px 8px; border-radius:4px; display:inline-block;
+}
+.tag.derived{color:var(--derived); background:rgba(34,211,238,.1); border:1px solid rgba(34,211,238,.28)}
+.tag.declared{color:var(--declared); background:rgba(242,177,52,.1); border:1px solid rgba(242,177,52,.3)}
+.panel h3{font-size:19px; margin-top:14px; font-weight:620}
+.panel p{margin-top:11px; color:var(--muted); font-size:14.8px}
+.panel ul{margin:14px 0 0; padding-left:0; list-style:none}
+.panel li{color:var(--muted); font-size:14.2px; padding-left:18px; position:relative; margin-top:7px}
+.panel li::before{content:"·"; position:absolute; left:5px; color:var(--dim); font-weight:700}
+@media(max-width:780px){ .split{grid-template-columns:1fr} }
+
+/* hazard chips */
+.hazards{display:flex; flex-wrap:wrap; gap:8px; margin-top:30px}
+.chip{
+  font-family:var(--mono); font-size:12.6px; padding:6px 12px; border-radius:999px;
+  border:1px solid var(--line); background:var(--surface); color:var(--muted);
+}
+.chip b{color:var(--ok); font-weight:500}
+
+/* ── pipeline diagram ─────────────────────────────────── */
+.figure{margin-top:38px; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); padding:22px 18px 16px}
+.figure svg{display:block; width:100%; height:auto}
+.figcap{margin-top:14px; padding-top:13px; border-top:1px solid var(--line-soft); color:var(--dim); font-size:13px; max-width:78ch}
+.scroll-x{overflow-x:auto; -webkit-overflow-scrolling:touch}
+.scroll-x>svg{min-width:660px}
+
+/* ── tables ───────────────────────────────────────────── */
+.tbl{width:100%; border-collapse:collapse; margin-top:30px; font-size:14.4px}
+.tbl th{
+  text-align:left; font-family:var(--mono); font-size:10.8px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--dim); font-weight:500;
+  padding:0 16px 11px 0; border-bottom:1px solid var(--line);
+}
+.tbl td{padding:15px 16px 15px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--muted)}
+.tbl td:first-child{color:var(--text); font-weight:540; white-space:nowrap}
+.tbl code{font-family:var(--mono); font-size:12.8px; color:var(--derived); background:rgba(34,211,238,.08); padding:2px 6px; border-radius:4px; white-space:nowrap}
+.lat{font-family:var(--mono); color:var(--ok); white-space:nowrap}
+@media(max-width:700px){
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block; width:100%}
+  .tbl thead{display:none}
+  .tbl tr{border-bottom:1px solid var(--line); padding:14px 0}
+  .tbl td{border:0; padding:3px 0}
+  .tbl td:first-child{white-space:normal; margin-bottom:5px}
+}
+
+/* ── capacity bars ────────────────────────────────────── */
+.bars{margin-top:34px; display:grid; gap:11px}
+.bar{display:grid; grid-template-columns:168px 1fr auto; gap:14px; align-items:center; font-size:14px}
+.bar .nm{color:var(--muted); font-size:13.6px}
+.bar .track{display:block; height:22px; background:var(--surface-2); border:1px solid var(--line-soft); border-radius:5px; overflow:hidden}
+.bar .fill{display:block; height:100%; background:rgba(34,211,238,.24); border-right:2px solid rgba(34,211,238,.55)}
+.bar .v{display:block; font-family:var(--mono); font-size:13px; color:var(--dim); min-width:72px; text-align:right}
+.bar.binding .nm{color:var(--text); font-weight:580}
+.bar.binding .fill{background:rgba(255,92,71,.26); border-right-color:var(--alert)}
+.bar.binding .v{color:var(--alert)}
+.bar.result{margin-top:9px; padding-top:14px; border-top:1px solid var(--line)}
+.bar.result .nm{color:var(--text); font-weight:620}
+.bar.result .v{color:var(--text); font-size:15px}
+@media(max-width:620px){ .bar{grid-template-columns:1fr; gap:5px} .bar .v{text-align:left} }
+
+/* ── commitment cards ─────────────────────────────────── */
+.cards{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:38px}
+.card{border:1px solid var(--line); border-radius:var(--r); background:var(--surface); padding:22px}
+.card .no{font-family:var(--mono); font-size:11.5px; color:var(--derived); letter-spacing:.1em}
+.card h3{font-size:16.5px; margin-top:11px; font-weight:600; line-height:1.35}
+.card p{margin-top:10px; color:var(--muted); font-size:14px}
+@media(max-width:900px){ .cards{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:620px){ .cards{grid-template-columns:1fr} }
+
+/* ── code blocks ──────────────────────────────────────── */
+.runs{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:36px}
+pre{
+  margin:14px 0 0; background:#05090d; border:1px solid var(--line-soft); border-radius:8px;
+  padding:16px; overflow-x:auto; font-family:var(--mono); font-size:13px; line-height:1.75; color:#cfe0ee;
+}
+pre .c{color:var(--dim)}
+pre .p{color:var(--derived)}
+@media(max-width:780px){ .runs{grid-template-columns:1fr} }
+
+/* ── doc list ─────────────────────────────────────────── */
+.docs{display:grid; grid-template-columns:repeat(2,1fr); gap:1px; margin-top:34px; background:var(--line-soft); border:1px solid var(--line-soft); border-radius:var(--r); overflow:hidden}
+.doc{background:var(--surface); padding:20px 22px; display:block; color:inherit; transition:background .15s}
+.doc:hover{background:var(--surface-2); text-decoration:none}
+.doc .k{font-family:var(--mono); font-size:11px; color:var(--dim); letter-spacing:.12em}
+.doc h3{font-size:15.5px; margin-top:7px; font-weight:590; color:var(--text)}
+.doc p{margin-top:7px; color:var(--muted); font-size:13.8px}
+@media(max-width:700px){ .docs{grid-template-columns:1fr} }
+
+/* ── footer ───────────────────────────────────────────── */
+footer{border-top:1px solid var(--line); padding:48px 0 60px; color:var(--dim); font-size:13.4px}
+.fgrid{display:grid; grid-template-columns:2fr 1fr 1fr; gap:34px}
+footer h4{font-family:var(--mono); font-size:10.8px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 13px; font-weight:500}
+footer a{color:var(--muted)}
+footer ul{list-style:none; margin:0; padding:0}
+footer li{margin-bottom:8px}
+.fnote{margin-top:38px; padding-top:22px; border-top:1px solid var(--line-soft); max-width:80ch; line-height:1.7}
+@media(max-width:780px){ .fgrid{grid-template-columns:1fr; gap:26px} }
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important; transition:none !important}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="wrap navbar">
+    <a class="brand" href="#top">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 5 4 27h24z" fill="none" stroke="#22d3ee" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M16 13v7" stroke="#f2b134" stroke-width="2.4" stroke-linecap="round"/>
+        <circle cx="16" cy="23.4" r="1.35" fill="#f2b134"/>
+      </svg>
+      AapdaSync
+    </a>
+    <nav class="top">
+      <a href="#coverage">Coverage</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#realtime">Real time</a>
+      <a href="#capacity">Capacity</a>
+      <a href="#algorithms">Algorithms</a>
+      <a href="#docs">Docs</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="app/">Open the dashboard</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ══ HERO ══════════════════════════════════════════════ -->
+<div class="wrap hero">
+  <div class="kicker">Nexora · multi-hazard civil protection</div>
+
+  <h1>Risk, exposure and evacuation, resolved into <em>one decision</em>.</h1>
+
+  <p class="lede">
+    AapdaSync ingests Indian authority data, scores hazard risk on an H3 grid,
+    estimates who is <strong>physically</strong> exposed, ranks areas for relocation with a
+    transparent explanation, models real shelter capacity, and routes evacuation
+    over a road network whose state changes in real time.
+  </p>
+
+  <div class="cta">
+    <a class="btn btn-primary" href="app/">
+      Open the live dashboard
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a class="btn" href="https://github.com/Nexora-11-1/Aapda_sync">Source on GitHub</a>
+    <a class="btn" href="#docs">The design package</a>
+  </div>
+
+  <div class="caveat">
+    <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 2.6 1.6 17.4h16.8z" fill="none" stroke="#f2b134" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M10 8v4" stroke="#f2b134" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="10" cy="14.6" r=".95" fill="#f2b134"/>
+    </svg>
+    <p>
+      Model output on this platform is <b>AI-based risk prediction and decision
+      support. It is not an official warning.</b>
+      <span class="src">Official warnings come from IMD, NDMA/SACHET, CWC and the State
+      Disaster Management Authorities. They are carried verbatim, with their
+      issuing authority attached.</span>
+    </p>
+  </div>
+
+  <div class="rail">
+    <div><div class="n">9</div><div class="l">hazards, each wired to a live feed</div></div>
+    <div><div class="n">36</div><div class="l">states and union territories, drillable</div></div>
+    <div><div class="n">0</div><div class="l">credentials required to run it</div></div>
+    <div><div class="n">1</div><div class="l">file for the offline dashboard</div></div>
+  </div>
+
+  <div class="hazards">
+    <span class="chip"><b>●</b> Flood</span>
+    <span class="chip"><b>●</b> Landslide</span>
+    <span class="chip"><b>●</b> Cyclone</span>
+    <span class="chip"><b>●</b> Earthquake</span>
+    <span class="chip"><b>●</b> Tsunami</span>
+    <span class="chip"><b>●</b> Heatwave</span>
+    <span class="chip"><b>●</b> Wildfire</span>
+    <span class="chip"><b>●</b> Drought</span>
+    <span class="chip"><b>●</b> Lightning</span>
+  </div>
+</div>
+
+<!-- ══ COVERAGE ══════════════════════════════════════════ -->
+<section id="coverage">
+  <div class="wrap">
+    <div class="kicker">The distinction the whole design rests on</div>
+    <h2 class="sec-h">Coverage and registers come from different places, so they are never mixed.</h2>
+    <p class="sec-p">
+      Most dashboards blur a computed figure into a reported one and present the
+      result as a single number. This one cannot: derived and declared are
+      different objects, drawn differently, and a state without a feed is drawn
+      as <em>no data</em> rather than as a safe green cell.
+    </p>
+
+    <div class="split">
+      <div class="panel derived">
+        <span class="tag derived">Derived · national</span>
+        <h3>Modelled risk is computed for the whole country</h3>
+        <p>
+          IMD/Open-Meteo, GloFAS, USGS/GDACS, INCOIS and FIRMS cover all of India,
+          so a risk surface can be computed for any state honestly.
+        </p>
+        <ul>
+          <li>Risk scored on an H3 grid, every tick, for all 36 states</li>
+          <li>Exposure as a spatial overlay — not <span class="mono">p × population</span></li>
+          <li>Every response carries its attribution and its data freshness</li>
+        </ul>
+      </div>
+
+      <div class="panel declared">
+        <span class="tag declared">Declared · local</span>
+        <h3>Registers belong to a State Disaster Management Authority</h3>
+        <p>
+          Shelter capacity and road state are local records. Chamoli District,
+          Uttarakhand is the integrated MVP. Every other state shows a
+          <strong>provisional register</strong>, and the interface says so on the
+          screen, every time.
+        </p>
+        <ul>
+          <li>A declared figure is shown as reported, never totalled with a computed one</li>
+          <li>No feed means capacity is marked <em>not available</em> — not zero, not estimated</li>
+          <li>Connecting one more district is a concrete, costed step</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PIPELINE ══════════════════════════════════════════ -->
+<section id="pipeline">
+  <div class="wrap">
+    <div class="kicker">From a gauge reading to an evacuation order</div>
+    <h2 class="sec-h">One chain, and every link says what it used.</h2>
+    <p class="sec-p">
+      Raw inputs go in — ground motion, flood depth, slope susceptibility, plume
+      fraction, floor area, litres per day, latrine counts, road throughput.
+      Every number on every screen is derived from them. Change an input and the
+      whole chain moves.
+    </p>
+
+    <div class="figure">
+      <div class="scroll-x">
+      <svg viewBox="0 0 1080 300" role="img" aria-label="The processing chain: ten ingestion connectors feed an H3 grid, then a leakage-safe feature builder, the risk engine, exposure, priority, capacity and routing, all converging on a coalescing recompute bus that pushes to every open dashboard.">
+        <defs>
+          <pattern id="hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="7" stroke="#f2b134" stroke-opacity=".3" stroke-width="2"/>
+          </pattern>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 10 5 0 10z" fill="#2c4457"/>
+          </marker>
+          <marker id="arc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 10 5 0 10z" fill="#22d3ee" fill-opacity=".75"/>
+          </marker>
+        </defs>
+
+        <!-- ── tier label: sources ── -->
+        <text x="12" y="22" fill="#637689" font-family="ui-monospace,monospace" font-size="10.5" letter-spacing="1.6">SOURCES</text>
+
+        <!-- authoritative -->
+        <rect x="12" y="34" width="150" height="72" rx="7" fill="#0e1720" stroke="#243544"/>
+        <text x="26" y="55" fill="#e3ebf3" font-family="ui-monospace,monospace" font-size="11.5">authoritative</text>
+        <text x="26" y="73" fill="#93a5b7" font-size="11">IMD · CWC · NCS</text>
+        <text x="26" y="89" fill="#93a5b7" font-size="11">INCOIS · NRSC</text>
+        <rect x="12" y="34" width="4" height="72" rx="2" fill="#f2b134"/>
+
+        <!-- supplementary -->
+        <rect x="12" y="120" width="150" height="72" rx="7" fill="#0e1720" stroke="#243544"/>
+        <text x="26" y="141" fill="#e3ebf3" font-family="ui-monospace,monospace" font-size="11.5">supplementary</text>
+        <text x="26" y="159" fill="#93a5b7" font-size="11">Open-Meteo · GloFAS</text>
+        <text x="26" y="175" fill="#93a5b7" font-size="11">USGS · GDACS · FIRMS</text>
+        <rect x="12" y="120" width="4" height="72" rx="2" fill="#22d3ee"/>
+
+        <!-- push ingress -->
+        <rect x="12" y="206" width="150" height="54" rx="7" fill="#0e1720" stroke="#243544"/>
+        <text x="26" y="227" fill="#e3ebf3" font-family="ui-monospace,monospace" font-size="11.5">push ingress</text>
+        <text x="26" y="245" fill="#93a5b7" font-size="11">HMAC-signed · ~1 s</text>
+        <rect x="12" y="206" width="4" height="54" rx="2" fill="#3ddc97"/>
+
+        <!-- arrows into grid -->
+        <path d="M168 70 H196 V140" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+        <path d="M168 156 H210" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+        <path d="M168 233 H196 V172" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+        <!-- ── tier label: derivation ── -->
+        <text x="222" y="22" fill="#637689" font-family="ui-monospace,monospace" font-size="10.5" letter-spacing="1.6">DERIVATION — every stage names its inputs</text>
+
+        <g font-family="ui-monospace,monospace" font-size="11">
+          <!-- H3 grid -->
+          <rect x="222" y="126" width="104" height="60" rx="7" fill="#111c26" stroke="#2a3f52"/>
+          <text x="274" y="151" fill="#e3ebf3" text-anchor="middle" font-size="12">H3 grid</text>
+          <text x="274" y="169" fill="#637689" text-anchor="middle" font-size="10">quadtree · k-d tree</text>
+
+          <path d="M330 156 H354" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- features -->
+          <rect x="356" y="126" width="104" height="60" rx="7" fill="#111c26" stroke="#2a3f52"/>
+          <text x="408" y="151" fill="#e3ebf3" text-anchor="middle" font-size="12">features</text>
+          <text x="408" y="169" fill="#637689" text-anchor="middle" font-size="10">leakage-safe, as-of</text>
+
+          <path d="M464 156 H488" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- risk -->
+          <rect x="490" y="126" width="104" height="60" rx="7" fill="#0f2026" stroke="#22d3ee" stroke-opacity=".45"/>
+          <text x="542" y="151" fill="#22d3ee" text-anchor="middle" font-size="12">risk</text>
+          <text x="542" y="169" fill="#637689" text-anchor="middle" font-size="10">calibrated</text>
+
+          <path d="M598 156 H622" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- exposure -->
+          <rect x="624" y="126" width="104" height="60" rx="7" fill="#111c26" stroke="#2a3f52"/>
+          <text x="676" y="151" fill="#e3ebf3" text-anchor="middle" font-size="12">exposure</text>
+          <text x="676" y="169" fill="#637689" text-anchor="middle" font-size="10">spatial overlay</text>
+
+          <path d="M732 156 H756" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- priority -->
+          <rect x="758" y="96" width="104" height="52" rx="7" fill="#111c26" stroke="#2a3f52"/>
+          <text x="810" y="117" fill="#e3ebf3" text-anchor="middle" font-size="12">priority</text>
+          <text x="810" y="134" fill="#637689" text-anchor="middle" font-size="10">stable sort</text>
+
+          <!-- capacity -->
+          <rect x="758" y="160" width="104" height="52" rx="7" fill="#111c26" stroke="#2a3f52"/>
+          <text x="810" y="181" fill="#e3ebf3" text-anchor="middle" font-size="12">capacity</text>
+          <text x="810" y="198" fill="#637689" text-anchor="middle" font-size="10">min of six</text>
+
+          <path d="M866 122 H890 V150" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M866 186 H890 V166" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <!-- routing -->
+          <rect x="892" y="126" width="104" height="60" rx="7" fill="#111c26" stroke="#2a3f52"/>
+          <text x="944" y="151" fill="#e3ebf3" text-anchor="middle" font-size="12">routing</text>
+          <text x="944" y="169" fill="#637689" text-anchor="middle" font-size="10">Dijkstra · A*</text>
+        </g>
+
+        <!-- coalescing bus -->
+        <rect x="222" y="236" width="774" height="46" rx="8" fill="url(#hatch)" fill-opacity=".5" stroke="#2a3f52"/>
+        <rect x="222" y="236" width="774" height="46" rx="8" fill="#0d1620" fill-opacity=".72" stroke="none"/>
+        <text x="240" y="256" fill="#e3ebf3" font-family="ui-monospace,monospace" font-size="11.5">coalescing recompute bus</text>
+        <text x="240" y="273" fill="#93a5b7" font-size="11">ten road closures in one second produce one recompute carrying all ten — never ten recomputes</text>
+
+        <path d="M274 190 V232" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+        <path d="M542 190 V232" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+        <path d="M810 216 V232" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+        <path d="M944 190 V232" fill="none" stroke="#2c4457" stroke-width="1.5" marker-end="url(#ar)"/>
+
+        <!-- to dashboards -->
+        <path d="M1006 259 H1044" fill="none" stroke="#22d3ee" stroke-opacity=".75" stroke-width="1.6" marker-end="url(#arc)"/>
+        <text x="1026" y="242" fill="#22d3ee" font-family="ui-monospace,monospace" font-size="10" text-anchor="middle">WS</text>
+      </svg>
+      </div>
+      <p class="figcap">
+        A stalled pipeline says so. <span class="mono">orchestrator.tick_watchdog</span>
+        distinguishes <em>never ran</em> from <em>stalled</em>, <em>lagging</em> and
+        <em>healthy</em>, exports <span class="mono">PIPELINE_LAG</span>, and publishes
+        <span class="mono">pipeline_health</span> to every open dashboard.
+        <span class="mono">/readyz</span> fails once the pipeline is more than six risk
+        intervals behind, so a load balancer pulls the instance rather than serving
+        figures that have quietly stopped moving.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ REAL TIME ═════════════════════════════════════════ -->
+<section id="realtime">
+  <div class="wrap">
+    <div class="kicker">What real time means here</div>
+    <h2 class="sec-h">The platform cannot be faster than the authorities it reads. What it guarantees is zero added latency.</h2>
+    <p class="sec-p">
+      IMD publishes on its own cadence; CWC's gauges report when they report. The
+      moment a fact arrives it is processed and on every open dashboard. Three
+      paths, in order of speed.
+    </p>
+
+    <table class="tbl">
+      <thead><tr><th>Path</th><th>Latency</th><th>Used by</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Push ingress</td>
+          <td class="lat">~1 s to the dashboard</td>
+          <td>Authorities and SDMA integrations that can push. <code>POST /api/ingest/event</code>, HMAC-signed and replay-protected.</td>
+        </tr>
+        <tr>
+          <td>Write-through</td>
+          <td class="lat">~1 s</td>
+          <td>Operator writes — a shelter fills, a road is cut, a report is verified. Each triggers an immediate district recompute.</td>
+        </tr>
+        <tr>
+          <td>Polling</td>
+          <td class="lat">source-dependent</td>
+          <td>The floor, for sources with no push. Per-source cadence, as tight as each one's rate limit allows.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="split" style="margin-top:34px">
+      <div class="panel">
+        <h3 style="margin-top:0">Nothing on screen is a baked-in timestamp</h3>
+        <p>
+          Every displayed time is derived at render time from the wall clock in
+          <span class="mono">Asia/Kolkata</span>, so an alert seeded "37 minutes
+          ago" reads as 37 minutes ago whenever the page is opened. The loop
+          measures elapsed wall-clock time rather than counting ticks: if a tab is
+          throttled or the machine sleeps, the missed intervals are replayed on
+          return.
+        </p>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0">The clock is an input, not a decoration</h3>
+        <p>
+          India's hazards are strongly seasonal and partly diurnal, and the
+          opening state is derived from what time it actually is — flood and
+          landslide in the southwest monsoon, cyclone in the post-monsoon Bay
+          season, heat and fire before the monsoon breaks. Open it in November and
+          Odisha leads on cyclone; open it in February and the country is quiet.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CAPACITY ══════════════════════════════════════════ -->
+<section id="capacity">
+  <div class="wrap">
+    <div class="kicker">The number nobody else computes</div>
+    <h2 class="sec-h">Physical capacity is not safe operational capacity.</h2>
+    <p class="sec-p">
+      A hall rated for 5,000 with 4,200 already inside, water for 400 people and
+      one nurse does not have 800 usable places. It has whatever the binding
+      constraint says it has — and knowing <em>which</em> constraint binds is the
+      operationally useful part, because it tells you whether to send a tanker or
+      open another hall.
+    </p>
+
+    <div class="bars" role="img" aria-label="Six independent ceilings computed for one shelter. Space allows 229 places, water 400, food 610, sanitation 160, medical 500 and staffing 340. Sanitation binds at 160; after the 90 percent safe-utilisation factor the effective capacity is 144 places.">
+      <div class="bar"><span class="nm">Floor space</span><span class="track"><span class="fill" style="width:37.5%"></span></span><span class="v">229</span></div>
+      <div class="bar"><span class="nm">Assured water</span><span class="track"><span class="fill" style="width:65.6%"></span></span><span class="v">400</span></div>
+      <div class="bar"><span class="nm">Food</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="v">610</span></div>
+      <div class="bar binding"><span class="nm">Sanitation ← binding</span><span class="track"><span class="fill" style="width:26.2%"></span></span><span class="v">160</span></div>
+      <div class="bar"><span class="nm">Medical</span><span class="track"><span class="fill" style="width:82%"></span></span><span class="v">500</span></div>
+      <div class="bar"><span class="nm">Staffing</span><span class="track"><span class="fill" style="width:55.7%"></span></span><span class="v">340</span></div>
+      <div class="bar result"><span class="nm">Effective capacity</span><span class="track"><span class="fill" style="width:23.6%"></span></span><span class="v">144</span></div>
+    </div>
+
+    <p class="sec-p" style="margin-top:26px">
+      <span class="mono" style="color:var(--text)">effective_capacity = min(space, water, food, sanitation, medical, staffing) × operational_factor</span>
+    </p>
+
+    <table class="tbl">
+      <thead><tr><th>Ceiling</th><th>Planning standard</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>Floor space</td><td><code>3.5 m² per person</code></td><td>Sphere / NDMA relief-camp guidance</td></tr>
+        <tr><td>Assured water</td><td><code>15 litres per person per day</code></td><td>Sphere / NDMA relief-camp guidance</td></tr>
+        <tr><td>Sanitation</td><td><code>1 latrine per 20 people</code></td><td>Sphere / NDMA relief-camp guidance</td></tr>
+        <tr><td>Medical</td><td><code>1 trained responder per 250 people</code></td><td>Sphere / NDMA relief-camp guidance</td></tr>
+        <tr><td>Food &amp; staffing</td><td>days remaining · staff present</td><td>The shelter's own reported state</td></tr>
+        <tr><td>Operational factor</td><td><code>0.90 safe utilisation</code></td><td>Crowding a camp to 100% makes it unmanageable</td></tr>
+      </tbody>
+    </table>
+
+    <p class="sec-p" style="margin-top:26px">
+      The engine recomputes on every shelter status update and on every risk tick,
+      because <strong>a shelter that has just come inside a hazard footprint has an
+      effective capacity of zero</strong>, regardless of how much floor it has.
+    </p>
+  </div>
+</section>
+
+<!-- ══ ALGORITHMS ════════════════════════════════════════ -->
+<section id="algorithms">
+  <div class="wrap">
+    <div class="kicker">Chosen for a reason, and the reason is testable</div>
+    <h2 class="sec-h">Four algorithms, four bounds — each asserted by a test rather than by prose.</h2>
+    <p class="sec-p">
+      Every bound below has a case in <span class="mono">backend/tests/test_daa.py</span>
+      that measures it.
+    </p>
+
+    <table class="tbl">
+      <thead><tr><th>Where</th><th>Algorithm</th><th>Bound</th><th>Why this one</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>spatial/quadtree.py</code></td>
+          <td>Recursive quadrant subdivision</td>
+          <td class="mono" style="color:var(--derived)">Θ(n) worst case</td>
+          <td>Risk is spatially autocorrelated. Proving a quadrant uniform is cheap; the budget goes to quadrants that disagree with themselves. Measured prune rate ≈ 0.72 on a live monsoon tick.</td>
+        </tr>
+        <tr>
+          <td><code>priority/mergesort.py</code></td>
+          <td>Merge sort</td>
+          <td class="mono" style="color:var(--derived)">Θ(n log n), all cases</td>
+          <td>Stability under a documented tie-break, so the evacuation queue does not reshuffle between ticks; an auditable comparison trace; no pathological case inside a 15-minute deadline.</td>
+        </tr>
+        <tr>
+          <td><code>spatial/nearest.py</code></td>
+          <td>2-d k-d tree</td>
+          <td class="mono" style="color:var(--derived)">build Θ(n log n) · query Θ(log n)</td>
+          <td>Shelter candidate generation in microseconds with no database round trip. Projected to metres — comparing degrees is subtly wrong north–south.</td>
+        </tr>
+        <tr>
+          <td><code>routing/graph.py</code></td>
+          <td>Dijkstra one-to-many · A* point-to-point</td>
+          <td class="mono" style="color:var(--derived)">Θ((V+E) log V)</td>
+          <td>One Dijkstra per zone costs less than A* per shelter. The A* heuristic is great-circle ÷ max speed: admissible and consistent, so the result is provably optimal.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ COMMITMENTS ═══════════════════════════════════════ -->
+<section id="commitments">
+  <div class="wrap">
+    <div class="kicker">Enforced in code and covered by tests — not stated as intent</div>
+    <h2 class="sec-h">The rules that are not style.</h2>
+
+    <div class="cards">
+      <div class="card">
+        <div class="no">01</div>
+        <h3>A model prediction is never presented as a warning</h3>
+        <p>Every risk response carries its attribution. Official alerts live on a separate endpoint with the issuing authority intact.</p>
+      </div>
+      <div class="card">
+        <div class="no">02</div>
+        <h3>Stale is never presented as live</h3>
+        <p>Sources past their staleness window are marked. A stopped pipeline fails <span class="mono">/readyz</span> rather than serving its last figures as current.</p>
+      </div>
+      <div class="card">
+        <div class="no">03</div>
+        <h3>No data is not zero risk</h3>
+        <p>A cell with no model output renders hatched, as <em>no data</em> — never as a safe green cell.</p>
+      </div>
+      <div class="card">
+        <div class="no">04</div>
+        <h3>Exposure is a spatial overlay</h3>
+        <p>8,200 people in a cell 12 m above the drainage line are not 5,250 people at risk. Not <span class="mono">p × population</span>.</p>
+      </div>
+      <div class="card">
+        <div class="no">05</div>
+        <h3>Priority is reconstructible</h3>
+        <p>Displayed contributions sum to the score exactly. <span class="mono">PriorityEngine.verify</span> raises if they ever diverge.</p>
+      </div>
+      <div class="card">
+        <div class="no">06</div>
+        <h3>No invented endpoints</h3>
+        <p>A credentialed source with no credential reports <span class="mono">NOT_CONFIGURED</span> and calls nothing. One failed source never takes down the platform.</p>
+      </div>
+      <div class="card">
+        <div class="no">07</div>
+        <h3>A repaint never takes the reader's place</h3>
+        <p>Nothing rebuilds the screen on a timer while somebody is scrolling, dragging or typing. Scroll position and focus come back afterwards.</p>
+      </div>
+      <div class="card">
+        <div class="no">08</div>
+        <h3>An interaction costs what it is worth</h3>
+        <p>A two-pixel twitch does not pan. A pan that moved does not also open what it ended on. One finger on a phone always scrolls.</p>
+      </div>
+      <div class="card">
+        <div class="no">09</div>
+        <h3>A photograph without a credit is not displayed</h3>
+        <p>Not by the build, not by the browser drop-in path. An unchecked credit says so on the image, not only in the build log.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ RUN IT ════════════════════════════════════════════ -->
+<section id="run">
+  <div class="wrap">
+    <div class="kicker">Two ways to run it</div>
+    <h2 class="sec-h">The full stack, or one file on a USB stick.</h2>
+
+    <div class="runs">
+      <div class="panel">
+        <span class="tag derived">Full stack</span>
+        <h3>API · worker · PostGIS · Redis · frontend</h3>
+        <p>Starts with no credentials. Every credentialed source reports <span class="mono">NOT_CONFIGURED</span>, which is a supported running state — the platform runs, marks those sources in the UI, and reduces the confidence of predictions that needed them.</p>
+<pre><span class="c"># set POSTGRES_PASSWORD and AAPDA_JWT_SECRET</span>
+cp .env.example .env
+docker compose up -d --build
+
+<span class="c"># build the grid and load infrastructure</span>
+docker compose exec worker python scripts/build_grid.py
+docker compose exec worker python scripts/load_osm.py
+
+<span class="c"># what can this host actually reach?</span>
+cd backend &amp;&amp; python scripts/check_sources.py</pre>
+      </div>
+
+      <div class="panel">
+        <span class="tag declared">Offline</span>
+        <h3>One self-contained HTML file</h3>
+        <p>No server, no build step, no network beyond two web fonts — and it falls back to system fonts cleanly without them. It is what you email, put on a USB stick, or run in a district control room with no uplink.</p>
+<pre><span class="c"># rebuild the single file</span>
+cd frontend/standalone
+node build.js
+<span class="c">#  → ../dist/aapdasync.html</span>
+
+<span class="c"># or just open the published one</span>
+<span class="p">open</span> frontend/dist/aapdasync.html</pre>
+        <p style="margin-top:16px"><a href="app/">Open it here, now →</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ DOCS ══════════════════════════════════════════════ -->
+<section id="docs">
+  <div class="wrap">
+    <div class="kicker">The design package</div>
+    <h2 class="sec-h">Read the limitations first.</h2>
+    <p class="sec-p">
+      The most useful document in the repository is the one that says what is
+      honestly not built. It is written that way on purpose.
+    </p>
+
+    <div class="docs">
+      <a class="doc" href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/12-audit-and-limitations.md">
+        <div class="k">12 · START HERE</div>
+        <h3>Audit, and what is honestly not built</h3>
+        <p>What the audit found and what was fixed. What is actually live. What is real geometry. Read this before quoting any figure.</p>
+      </a>
+      <a class="doc" href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/01-architecture.md">
+        <div class="k">01</div>
+        <h3>Architecture</h3>
+        <p>Process topology, why Redis and not Kafka, failure posture, and the scaling path.</p>
+      </a>
+      <a class="doc" href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/10-data-sources.md">
+        <div class="k">10</div>
+        <h3>Data source register</h3>
+        <p>Every source, its real access route, what it needs, and the hazard → source map. The only place a source URL may be asserted.</p>
+      </a>
+      <a class="doc" href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/11-assistant-and-access.md">
+        <div class="k">11</div>
+        <h3>The assistant, and the bridge into Command</h3>
+        <p>Retrieval, the computed-fact path, and the refusal — because a confidently wrong answer is the worst failure available here.</p>
+      </a>
+      <a class="doc" href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/docs/09-roadmap.md">
+        <div class="k">09</div>
+        <h3>Development roadmap</h3>
+        <p>What is not built, and the sequence to a first real deployment.</p>
+      </a>
+      <a class="doc" href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/CONTRIBUTING.md">
+        <div class="k">REPO</div>
+        <h3>Contributing &amp; security</h3>
+        <p>How to run it, how to run the tests, the rules that are not style, and how to report a vulnerability privately.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div>
+        <div class="brand" style="margin-bottom:12px">
+          <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 5 4 27h24z" fill="none" stroke="#22d3ee" stroke-width="2.4" stroke-linejoin="round"/>
+            <path d="M16 13v7" stroke="#f2b134" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="16" cy="23.4" r="1.35" fill="#f2b134"/>
+          </svg>
+          AapdaSync
+        </div>
+        <p style="max-width:44ch">
+          India-specific multi-disaster risk, exposure and evacuation
+          decision-support. Built by <a href="https://github.com/Nexora-11-1">Nexora</a>.
+        </p>
+      </div>
+      <div>
+        <h4>Repository</h4>
+        <ul>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync">Source</a></li>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/README.md">README</a></li>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/SECURITY.md">Security policy</a></li>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync/tree/legacy-prototype">The earlier prototype</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Licence</h4>
+        <ul>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/LICENSE">MIT — the code</a></li>
+          <li><a href="https://github.com/Nexora-11-1/Aapda_sync/blob/main/NOTICE.md">NOTICE — everything else</a></li>
+        </ul>
+        <h4 style="margin-top:20px">Geometry</h4>
+        <ul>
+          <li>India · <span class="mono">@svg-maps/india</span> (MIT)</li>
+          <li>World · Natural Earth (public domain)</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="fnote">
+      <strong style="color:var(--declared)">Model output on this platform is AI-based risk prediction and
+      decision support. It is not an official warning.</strong>
+      Official warnings come from IMD, NDMA/SACHET, CWC and the State Disaster
+      Management Authorities. Map geometry on this platform is illustrative and
+      is not a survey boundary — it must not be used to determine where a border
+      lies. Registers outside Chamoli District, Uttarakhand are provisional and
+      are labelled as such on screen. This is decision support; it does not
+      replace trained responder judgement, and no screen in it should imply
+      otherwise.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

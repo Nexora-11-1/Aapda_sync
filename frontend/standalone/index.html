@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>AapdaSync — Multi-Disaster Risk & Evacuation Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+
+<!-- ═══ GATE ═══ -->
+<div id="gate">
+  <div class="gate-strip"><div class="w">
+    <span class="tri"><i style="background:#FF9933"></i><i style="background:#fff"></i><i style="background:#138808"></i></span>
+    <span>भारत सरकार · Government of India — National Disaster Management Authority</span>
+    <span style="flex:1"></span><span>Uttarakhand deployment · Chamoli District</span>
+  </div></div>
+  <div class="gate-body"><div class="gate-in">
+    <div class="gmark">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 3h10l5 9-5 9H7l-5-9Z"/><path d="M12 8.5v7M9 10.5l6 3M15 10.5l-6 3"/>
+      </svg>
+    </div>
+    <div class="gtitle">AapdaSync</div>
+    <div class="gsub">Multi-Disaster Risk, Exposure &amp; Evacuation Platform</div>
+    <div class="gnote">The public portal is open to everyone. District Command is restricted to
+      authorised disaster-management operators and asks for a credential.</div>
+    <div class="roles">
+      <button class="role" onclick="enter('citizen')">
+        <span class="ic" style="background:var(--infos)">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0B6BA8" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg>
+        </span>
+        <b>Citizen Portal</b>
+        <span>Official alerts from Indian authorities, the public risk map, open shelters with real available space, and incident reporting.</span>
+      </button>
+      <button class="role" onclick="enterCommand()">
+        <span class="ic" style="background:var(--pris)">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#12447E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 3.8 9.2 9 10 5.2-.8 9-5 9-10V6Z"/><path d="m9 12 2 2 4-4"/></svg>
+        </span>
+        <b>District Command</b>
+        <span>H3 risk cells, population exposure, relocation priority, shelter carrying capacity, evacuation routing and model monitoring.</span>
+        <span class="rlock">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Sign-in required</span>
+      </button>
+    </div>
+    <div style="margin-top:22px;font-size:11.5px;color:var(--t3);line-height:17px;max-width:520px;margin-left:auto;margin-right:auto">
+      Risk figures are AI-based prediction and decision support. They are not official warnings —
+      those are issued by IMD, NDMA, CWC and the State Disaster Management Authorities and are
+      shown separately with their issuing authority.
+    </div>
+  </div></div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app">
+  <div class="strip">
+    <span class="tri"><i style="background:#FF9933"></i><i style="background:#fff"></i><i style="background:#138808"></i></span>
+    <span>भारत सरकार · Government of India — National Disaster Management Authority</span>
+    <span class="sp"></span>
+    <a class="skip" href="#main" onclick="return skipToContent()">Skip to content</a>
+    <a href="#" onclick="toggleSR();return false">Screen Reader</a>
+    <button class="fsz" data-step="0" onclick="fontStep(-1)" aria-pressed="false" title="Smaller text">A−</button>
+    <button class="fsz" data-step="2" onclick="fontStep(0)" aria-pressed="true" title="Default text size">A</button>
+    <button class="fsz" data-step="4" onclick="fontStep(1)" aria-pressed="false" title="Larger text">A+</button>
+  </div>
+
+  <header class="top">
+    <div class="logo">
+      <span class="lm">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 3h10l5 9-5 9H7l-5-9Z"/><path d="M12 8.5v7M9 10.5l6 3M15 10.5l-6 3"/>
+        </svg>
+      </span>
+      <span><b>AapdaSync</b><i id="rolelbl">District Command</i></span>
+    </div>
+    <nav class="hnav" id="hnav"></nav>
+    <div class="hz" id="hazbox"></div>
+    <div class="srch" id="srchbox">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#77839A" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" placeholder="Search…" onfocus="openPal()" readonly>
+      <span class="kbd">Ctrl K</span>
+    </div>
+    <span class="sp"></span>
+    <div id="topstats" style="display:flex;gap:6px"></div>
+    <button class="ib guide-t" id="guidebtn" onclick="toggleGuide()" title="Explain what each feature is for" aria-label="Guided mode">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 1 1 4 2.8c-.7.3-1.2 1-1.2 1.8v.4M12 17h.01"/></svg>
+      <span>Guide</span></button>
+    <div class="lang"><button class="on">EN</button><button onclick="toast('भाषा','Hindi and 12 regional languages would be served here, as SACHET does. Official alert text is carried in whichever languages the issuing authority publishes.','info')">हिं</button></div>
+    <div class="rsw" id="rsw"></div>
+    <button class="ib" id="alertbtn" title="Official alerts" onclick="openDw('alerts')">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+    </button>
+  </header>
+
+  <nav class="nav">
+    <div class="nav-s" id="navlist"></div>
+    <div class="nfoot" id="navfoot"></div>
+  </nav>
+
+  <main class="main" id="main" tabindex="-1" role="main"></main>
+</div>
+
+<aside class="dw" id="dw"><div id="dwc" style="display:contents"></div></aside>
+<div class="scr" id="scr" onclick="if(event.target===this)closeM()"><div id="mdlc" style="display:contents"></div></div>
+<div class="pscr" id="pscr" onclick="if(event.target===this)closePal()">
+  <div class="pal">
+    <div class="pin">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#77839A" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="palq" placeholder="Type a command or search…" oninput="renderPal()">
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="pls" id="pallist"></div>
+  </div>
+</div>
+<div class="tsts" id="tsts"></div>
+<div class="sr" aria-live="assertive" id="live"></div>
+
+<button class="fab" id="fab" onclick="toggleChat()" style="display:none">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M12 3v4M8 13h.01M16 13h.01M9 17h6"/></svg>
+  Ask AapdaSync
+</button>
+<div class="chat" id="chat">
+  <div class="ch">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M12 3v4M9 17h6"/></svg>
+    <div style="flex:1"><div style="font-weight:600;font-size:14px">AapdaSync Assistant</div><div style="font-size:11.5px;opacity:.9">Answers from verified data only</div></div>
+    <button onclick="toggleChat()" style="color:#fff" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="cb" id="cb"><div class="bub bt">Namaste. I answer only from this platform's own records — risk cells, official warnings, shelters, roads, sources and its documented methods — and I show you which record each answer came from. If nothing here answers your question, I will say so rather than guess.</div></div>
+  <div class="chp" id="chp"></div>
+  <form class="cbf" onsubmit="askAssistant();return false">
+    <input id="cbi" placeholder="Ask about anything on this platform…" autocomplete="off" aria-label="Ask the assistant">
+    <button type="submit" aria-label="Send">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg>
+    </button>
+  </form>
+</div>
+
+<script src="assets/india-states.js"></script>
+<script src="src/catalogue.js"></script>
+<script src="src/states.js"></script>
+<script src="src/data.js"></script>
+<script src="src/livedata.js"></script>
+<script src="src/auth.js"></script>
+<script src="src/live.js"></script>
+<script src="assets/world.js"></script>
+<script src="src/geo.js"></script>
+<script src="src/map.js"></script>
+<script src="src/views.js"></script>
+<script src="src/actions.js"></script>
+<script src="src/citizen.js"></script>
+<script src="src/memorial.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/rag.js"></script>
+<script src="src/boot.js"></script>
+</body>
+</html>

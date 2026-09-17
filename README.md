@@ -1,558 +1,469 @@
 # AapdaSync
 
-**Hazard red zones, carrying capacity and relocation priority — resolved into one decision.**
+[![CI](https://github.com/Nexora-11-1/Aapda_sync/actions/workflows/ci.yml/badge.svg)](https://github.com/Nexora-11-1/Aapda_sync/actions/workflows/ci.yml)
+[![Pages](https://github.com/Nexora-11-1/Aapda_sync/actions/workflows/pages.yml/badge.svg)](https://github.com/Nexora-11-1/Aapda_sync/actions/workflows/pages.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-1f6feb.svg)](LICENSE)
 
-A student prototype for the problem of *intelligent identification of hazard-based red zones,
-carrying-capacity assessment, and immediate relocation needs for vulnerable habitations.*
+**[Open the live dashboard](https://nexora-11-1.github.io/Aapda_sync/app/)** ·
+[Project page](https://nexora-11-1.github.io/Aapda_sync/) ·
+[Documentation index](docs/00-index.md) ·
+[What is honestly not built](docs/12-audit-and-limitations.md) ·
+[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Third-party material](NOTICE.md)
 
-> **This is a prototype. Every figure is simulated.** The district, its place names, its population
-> and its shelters are invented. There is no government branding, no endorsement, no claim of
-> compliance, and nothing is transmitted anywhere.
+**India-specific multi-disaster risk, exposure and evacuation decision-support platform.**
 
-*Smart India Hackathon — Problem Statement 26191*
+Ingests Indian authority data, scores hazard risk on an H3 grid, estimates who is
+physically exposed, ranks areas for relocation with a transparent explanation,
+models real shelter capacity, and routes evacuation over a road network whose
+state changes in real time.
 
----
+**All 36 states and union territories** are live and drillable. All nine hazard
+modules are connected to real data sources and run with **no credentials at all**
+— credentials buy fidelity, not existence.
 
-## Repository
+Coverage and registers are separated deliberately, because they come from
+different places. *Modelled risk is national*: IMD/Open-Meteo, GloFAS, USGS/GDACS,
+INCOIS and FIRMS cover the whole country, so a risk surface can be computed for
+any state honestly. *Registers are local*: shelter capacity and road state come
+from a State Disaster Management Authority. Chamoli District, Uttarakhand is the
+integrated MVP; every other state shows a **provisional register** and the
+interface says so on the screen, every time.
 
-| | |
-|---|---|
-| **Clone** | `git clone https://github.com/Nexora-11-1/Aapda_sync.git` |
-| **Live site** | not published yet — this repository is private, and GitHub Pages needs a public repo on the free plan. `.github/workflows/pages.yml` is written and waiting; turn it on and the site lands at `https://nexora-11-1.github.io/Aapda_sync/` |
-| **Working on it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| **Third-party material** | [`NOTICE.md`](NOTICE.md) — **read this before making the repo public**, the bundled photographs have no recorded licence |
-| **Licence** | MIT for the code. Not for the photographs or the map geometry — see `NOTICE.md` |
+> Model output on this platform is **AI-based risk prediction and decision support.
+> It is not an official warning.** Official warnings come from IMD, NDMA/SACHET,
+> CWC and the State Disaster Management Authorities, and are carried verbatim with
+> their issuing authority attached.
 
 ---
 
 ## Run it
 
-Double-click `index.html`. That is the whole install.
+```bash
+cp .env.example .env          # set POSTGRES_PASSWORD and AAPDA_JWT_SECRET
+docker compose up -d --build
+```
 
-Plain HTML, CSS and ES2020 JavaScript loaded as classic scripts sharing one global scope. No
-framework, no bundler, no build step, no runtime dependencies, deliberately no ES modules — so it
-runs from `file://`. Every map and chart is hand-written inline SVG; there is no chart library and
-no map library. The only external request is the Google Fonts stylesheet, and the app falls back to
-system fonts cleanly without it.
+| Surface | URL |
+|---|---|
+| Dashboard | http://localhost:3000 |
+| API | http://localhost:8000/api |
+| API docs (non-prod) | http://localhost:8000/docs |
+| Liveness / readiness | `/healthz` · `/readyz` |
+| Prometheus metrics | `/metrics` |
+
+Then build the grid and load infrastructure:
+
+```bash
+docker compose exec worker python scripts/build_grid.py
+docker compose exec worker python scripts/load_osm.py
+```
+
+The stack starts with **no credentials**. Every credentialed source reports
+`NOT_CONFIGURED`, which is a supported running state — the platform runs, marks
+those sources in the UI, and reduces the confidence of predictions that needed
+them. Fill in `.env` to bring each one live (see `docs/10-data-sources.md`).
+
+### Check what your host can reach
+
+```bash
+cd backend && python scripts/check_sources.py
+```
+
+Makes real calls to every configured source and prints which of the nine hazards
+this server can actually feed, from this network, past this firewall. Run it
+first on any new deployment.
+
+### The dashboard on its own
+
+`frontend/dist/aapdasync.html` is a single self-contained file — no server, no
+build step, no network beyond the two web fonts. Open it directly. It is what
+you email, put on a USB stick, or run in a district control room with no uplink.
+
+```bash
+cd frontend/standalone && node build.js     # rebuild it
+```
 
 ---
 
-## The unique claim
+## What is real time, precisely
 
-Most systems in this space treat the three problems as three steps: a risk map here, a shelter list
-there, an evacuation plan in a spreadsheet. **AapdaSync computes the red zone and the shelter ledger
-as one thing.** Five specific consequences follow, and each is enforced in code rather than asserted
-in copy.
+The platform cannot be faster than the authorities it reads: IMD publishes on its
+own cadence, CWC's gauges report when they report. What it guarantees is **zero
+added latency** — the moment a fact arrives it is processed and on every open
+dashboard.
 
-### 1. A safe site's capacity is the minimum of five independent ceilings
+Three paths, in order of speed:
 
-| Ceiling | Derived from |
-|---|---|
-| Covered floor area | m² ÷ 3.5 m²/person (Sphere) |
-| Assured water | litres/day ÷ 15 L/person/day (Sphere) |
-| Sanitation | toilets × 20 persons/toilet (Sphere) |
-| Structural safety | the shelter's **own** hazard exposure, de-rated or disqualified |
-| Corridor throughput | road capacity × hours the road stays open before impact |
-
-The register's claimed figure is almost always the floor-area number with nothing else checked. The
-UI names which constraint is binding: *"Kotwa Higher Secondary claims 1,400. Its real capacity is
-160, capped by eight toilets."* In the shipped dataset the register overstates district capacity by
-**66%**, and two sites on it stand inside a red zone and carry zero capacity.
-
-Building resistance is applied to the **seismic term only**. Retrofitted RCC survives shaking; it
-does not survive standing in four metres of water or downwind of an ammonia release.
-
-### 2. Urgency is coupled to capacity
-
-```
-core = 0.60 × HEI + 0.40 × VCI
-amp  = 1 + 0.22 × time_pressure + 0.30 × capacity_stress
-RUI  = min(100, core × amp)
-```
-
-**Capacity stress is the term no other index has.** It is not "is there a shelter nearby" — on its
-own almost every habitation can see one with room. It is the habitation's *proportional share* of
-every site it can reach inside its own warning window, weighted by all the other demand competing
-for those same sites. When a shelter is disqualified, filled or cut off, the demand pointed at it
-redistributes, every competitor's share falls, and urgency upstream rises — without anyone touching
-the hazard model.
-
-It is an amplifier rather than a fourth weighted term on purpose. In a flat weighted sum a quiet
-term drags the score down, so a village that will be under four metres of water scores "medium"
-because its road happens to be short. Life-safety is the core; time and room can only raise urgency,
-never dilute it.
-
-### 3. Capacity is a double-entry account, not a label
-
-Every commitment posts a debit against a site and a credit to a habitation, carrying the operator
-who made it. Nothing is ever deleted — a release is a compensating posting, so the history of a
-decision survives the decision being reversed. This is what makes two officers physically unable to
-promise the same 500 places twice.
-
-### 4. The Deficit Clock separates three different shortages
-
-- **Capacity deficit** — people with a relocation need and no reachable qualified place at all.
-- **Movement deficit** — people who *have* a place the fleet cannot physically reach in time.
-  Opening more shelters does not fix this; more lift does.
-- **Readiness gap** — sites counted in capacity that are not yet staffed or supplied.
-
-Each is paired with a costed, lead-timed action that relieves the specific binding constraint
-causing it, and with the residual that has to be escalated because it cannot be closed locally.
-
-### 5. Two map levels, and the difference between them is the point
-
-The map opens on **India** — all 36 states and union territories, real geometry, tinted by what each
-state has **declared**. Exactly one of them has a district feed connected, and that state is drawn
-differently: solid where the rest are hatched, outlined in primary, with a drill-down that animates
-the viewBox onto the district before the frame is replaced.
-
-Declared and derived are never mixed. A state that has reported "412,000 at risk" gets that figure
-shown as reported, with the shelter capacity behind it marked *not available — no feed*. Only the
-connected district gets a computed capacity, a computed deficit and a movement plan. The national
-layer is therefore an honest picture of what a system like this actually knows on day one, and a
-concrete statement of what connecting one more district buys.
-
-### 6. Contribute to one constraint, not to a fund
-
-The public view carries a relief panel, and it is built on the capacity model rather than beside it.
-Because capacity is derived, the cost of lifting each binding constraint is known, and so is the
-number of shelter places lifting it releases. That makes a rate possible: **₹700 per shelter place
-at Kotwa, ₹400 at Devgarh**. The list is ordered by that rate, cheapest place first.
-
-Funding a constraint fully posts the augmentation to the ledger, re-solves the district, and the
-deficit falls by exactly the number of places the constraint was holding back. The receipt says
-which constraint, at which site, and what the deficit was before and after.
-
-**No payment is taken anywhere.** No card number, UPI ID or bank detail is requested or stored, the
-method buttons are labels only, and the receipt states in its own words that it is not a financial
-record and evidences no transaction. It exists to show the shape of a transparent contribution, not
-to move money.
-
-### 7. No orphan orders
-
-The system refuses to issue a relocation order without a debited capacity allocation behind it. An
-order with nothing backing it is an instruction to walk somewhere that may already be full. The
-wizard's final step disables itself and says so.
-
----
-
-## The forecast model
-
-`train/train_forecast.py` trains it; `src/model.js` is the exported weights; `src/forecast.js` runs it in
-the browser. Re-run the training with `python3 train/train_forecast.py`.
-
-**Task** — probability that a hazard impacts a given habitation within seven days.
-**Model** — logistic regression on 15 features: antecedent rainfall over 7 and 30 days, yesterday's rain,
-3-day maximum, season, and per-habitation terrain (slope, landslide susceptibility, elevation, 100-year
-flood depth, liquefaction, plume fraction, river proximity), days since last event, and two rainfall ×
-terrain interactions.
-
-| | |
-|---|---|
-| Held-out AUC | **0.826** (training AUC 0.862 — a small gap, so it is not memorising) |
-| PR-AUC | 0.751 against a base rate of 0.220 |
-| Brier | 0.098 |
-| Precision / recall @0.5 | 0.826 / 0.559 |
-| Split | **by time** — years 1–5 fit, year 6 held out |
-
-Four decisions in that model are worth defending:
-
-- **The split is by time, not at random.** A random split leaks the same storm into both halves through
-  the antecedent-rainfall features and inflates every metric.
-- **The training history is generated by a process the model cannot see** — a catchment store, a
-  slope-stability reservoir, district-wide shock days — none of which are features. Training a model on
-  its own scoring function would report a meaningless AUC.
-- **No `class_weight='balanced'`.** Balanced weights lift AUC slightly and destroy calibration: every
-  predicted probability shifts away from the base rate, so "40%" stops meaning 40%. This number is read
-  as a probability on screen and checked against a reliability curve, so calibration wins.
-- **Logistic regression, not gradient boosting.** The contribution of each feature is exactly
-  coefficient × standardised value, so "Why this score?" is arithmetic rather than an approximation.
-
-Confidence on each row is not invented: it is read off the held-out reliability table for the band that
-prediction falls into. Extrapolation is flagged against the *observed training range*, not a fixed
-z-threshold — a monsoon day legitimately sits at z ≈ 3.7 on antecedent rainfall and the model saw
-hundreds of them.
-
-> **Trained on a simulated history for a fictional district.** It ranks where to look first. It is not a
-> forecast of any real place.
-
-## Ask & Sources — retrieval, with a refusal
-
-`src/rag.js`. Two paths and one refusal:
-
-- **Computed** — questions about this district are answered from live engine state, so an answer can
-  never drift from the dashboard beside it.
-- **Retrieved** — questions about the record or the method go through BM25 over cited passages, and the
-  answer shows which passage it came from.
-- **Refused** — if neither path clears its threshold it says it does not know. It does not compose a
-  plausible sentence from the nearest passage. In a system whose whole argument is that unbacked numbers
-  get people hurt, a confidently wrong answer is the worst failure available.
-
-**Live news is not connected**, and the UI says so. A browser cannot fetch cross-origin from `file://`,
-and the hosted build's CSP blocks external hosts. The adapter is at the bottom of `src/rag.js`: point it
-at a same-origin endpoint, implement `fetchLive()`, and retrieved items index like any other passage.
-Shipping a retriever that silently returned nothing while looking live would be exactly the dishonesty
-this prototype argues against.
-
-## The barrier between public and government
-
-The public view and Government View are not a toggle. **Every** crossing into Government requires a
-fresh sign-in — leaving for the public view ends the session, so coming back asks again. On a shared
-district terminal the person who walks up next is not the person who signed in. The switch carries a
-lock.
-
-Route navigation is the other door, and it used to be unlocked: a deep link, the command palette or the
-alert bell would set a government route and promote the role on the way past. The check now sits in the
-router rather than on each caller, and the requested route is held and honoured once sign-in completes —
-a barrier that costs the operator their place is a barrier people learn to route around.
-
-The public view withholds, on purpose:
-
-- the numeric vulnerability breakdown behind a habitation's ranking — published household vulnerability
-  data tells anyone which families cannot leave on their own;
-- exact shelter occupancy — "space available / filling / nearly full / full" instead of a live headcount;
-- operational routing and movement orders.
-
-No credential is checked. The gate demonstrates where authorisation belongs; a deployment needs SSO,
-role-based authorisation and an audit trail on every crossing.
-
-## Data freshness
-
-Five stamps, kept separate, each moving only when that event actually happens: `lastSyncAt` (a source was
-polled), `lastDataUpdateAt` (inbound data changed), `lastComputeAt` (the chain re-derived),
-`lastVerifiedAt` (a human confirmed something), and per-report `capturedAt` / `receivedAt` — offline
-replay orders by capture, never by receipt. Collapsing these into one "last updated" is how a dashboard
-comes to claim freshness it does not have. Every screen shows the mode: **Simulated** or **Predicted**;
-no official feed is connected.
-
-## Working the map
-
-The map is the product, not a panel beside a list. **District Deck** gives it the full width and
-`100vh − 272px`; **GIS Map** gives it `100vh − 148px` with nothing else on screen. The live
-timeline that used to sit next to it is now an overlay on top of it that folds away, and the map's own
-panels move out of its way when it is open.
-
-Both levels — India and the district — are pan/zoom surfaces, not pictures:
-
-- **Scroll to zoom**, anchored on the cursor rather than the centre, because an operator zooms
-  towards something they are already looking at.
-- **Drag to pan.** A drag that travels more than a few pixels cancels the click it would otherwise
-  fire, so panning never opens a drawer by accident.
-- **Hover for figures.** Every state, habitation and safe site carries a tooltip with the numbers
-  that matter for it — a state's declared severity against its derived capacity (or the absence of
-  one), a habitation's urgency, need and unplaced count, a site's claimed capacity against its
-  derived capacity and what caps it.
-- **Hover a habitation to isolate its flows.** Eighteen allocation arcs on one map are unreadable
-  together; one hover answers "where do these particular people go" without a click.
-- **Double-click to zoom out**, plus explicit `+` / `−` / reset controls with a zoom readout.
-- Layer toggles, keyboard focus on every marker, and `Esc` to close whatever opened.
-
-## The record
-
-The public section opens with **The record** — a CSS-3D coverflow over six real Indian disasters.
-It is the one place in this prototype where the data is not simulated. Each card carries figures as
-reported by a cited source, the lesson the event taught, and the specific mechanism in AapdaSync
-that exists because of it:
-
-| Event | Figure on the card | The rule it put into the system |
+| Path | Latency | Used by |
 |---|---|---|
-| **Bhopal**, 3 Dec 1984 | ≈30 t of MIC in 45–60 min | A site inside a plume envelope is disqualified outright, not de-rated. Warning reach is a scored term. |
-| **Odisha super cyclone**, 29 Oct 1999 | 23 permanent shelters across six districts | Derived capacity against derived demand, computed before the event. |
-| **Bhuj**, 26 Jan 2001 | ≈400,000 buildings destroyed | Structural fragility is the heaviest term in the vulnerability index; shelter resistance applies to the seismic term only. |
-| **Kedarnath**, 16–17 Jun 2013 | 6,054 dead, 89% in Uttarakhand | Warning reach per habitation; an impacting hazard keeps a planning horizon and pins time pressure to maximum. |
-| **Kerala floods**, Jul–Aug 2018 | 3,274 relief camps, ≈1.25 m sheltered | Capacity is the minimum of five ceilings, not the register's claim. |
-| **Chamoli**, 7 Feb 2021 | 27 million m³ of rock and ice | Not everything is forecastable — so the plan, the ledger and the orders are standing artefacts. |
+| **Push ingress** `POST /api/ingest/event` | ~1 s to the dashboard | Authorities and SDMA integrations that can push. HMAC-signed, replay-protected. |
+| **Write-through** | ~1 s | Operator writes: a shelter fills, a road is cut, a report is verified. Each triggers an immediate district recompute. |
+| **Polling** | source-dependent | The floor, for sources with no push. Per-source cadence, as tight as each one's rate limit allows. |
 
-Where sources disagree — they usually do on mortality — the disagreement is shown rather than
-resolved. The card art is illustrative and labelled as such: the mechanism at the scale it operated on,
-never a depiction of the people it happened to.
+All three converge on one coalescing recompute bus (`app/realtime.py`): a burst
+of ten road closures in one second produces one recompute carrying all ten, not
+ten recomputes. The dashboard's live badge always states connection state and the
+age of what is on screen — a disconnected dashboard says *Offline* and shows how
+old its figures are, rather than displaying them as current.
 
-Sources are linked on each card and listed at the end of this file.
+**Nothing on screen is a baked-in timestamp.** Every time the dashboard displays
+is derived at render time from the wall clock in `Asia/Kolkata`
+(`Intl.DateTimeFormat`, not a counter), so an alert seeded "37 minutes ago"
+reads as 37 minutes ago whenever the page is opened — never as yesterday's
+16:42. The loop measures elapsed wall-clock time rather than counting ticks: if
+the browser throttles a background tab or the machine sleeps, the missed
+intervals are replayed on return so the figures catch up instead of resuming
+where they paused, and every displayed age is re-derived once a minute.
 
-**Images.** Every card carries a full-bleed **photograph**, supplied with this
-build, cropped to the card ratio and inlined as a data URI in
-`src/photos-bundled.js` by `train/bundle_photos.py`. Data URIs rather than files
-because the app has to run identically from `file://`, from the single-file
-build, and from the hosted page whose CSP blocks every external host.
+**The screen is synchronised with the store once a second.** The model underneath
+advances on the same second, in quarter-sized steps, so the rate of change is what
+it always was and the surface moves in four small increments rather than one visible
+jump every fourth second. The expensive parts are deliberately not on that cadence:
+the relocation queue and the routing are re-derived once per full tick, because a
+queue that reshuffles four times a second is unreadable and the documented promise
+is that it does not reshuffle between ticks. None of this changes how often real
+observations are fetched — polling Open-Meteo, GloFAS and USGS every second would
+burn somebody else's free service to redraw numbers that change hourly, so each
+source keeps its own cadence and the badge reports the true age of the reading
+rather than the age of the repaint.
 
-**Their provenance is not verified, and several are not the event on their
-card.** The Bhopal frame is the derelict Union Carbide plant photographed years
-after 1984; the Bhuj frame shows a collapsed reinforced-concrete mid-rise with
-modern rescue teams, where Bhuj destroyed mostly low-rise masonry. No credit or
-licence is recorded for any of the six. Rather than label them as the event and
-hope, **each carries a caption saying what it actually shows, on screen at all
-times** — the record cards are the one place in this prototype where the data is
-real and cited, and a mislabelled photograph there costs more than a missing one.
+**Repainting never moves the ground under the reader.** Nothing calls `render()` on
+a timer any more. The two screens people actually sit on — the command map and the
+public landing page — have targeted paths that update every figure that moves
+without replacing a single element anybody could be scrolling, reading or pointing
+at. Everything else rebuilds only when the reader is not mid-scroll, mid-drag or
+mid-sentence, and puts their scroll position and keyboard focus back afterwards.
 
-Cropping happens at bundle time rather than in the browser. The cards render at
-about 420×192 CSS px under `object-fit:cover`, so a 1000×673 frame carries 40%
-more rows than can ever be shown and pays for them on every load. Cropping to
-2.19:1 first and sizing to 880×402 at q76 took the set from 960 KB to 523 KB
-with nothing visible lost. The full page is about 1.67 MB, most of it these six
-frames plus the illustration fallback.
+**The whole country syncs, not just the open state.** Every tick advances all 36
+states, and each state's headline is recomputed as the peak of its own grid rather
+than nudged, so what the India map shows is genuinely the maximum risk anywhere in
+that state right now.
 
-A card shows the first of five sources that loads:
+The national alert feed is kept current rather than built once: entries age against
+the wall clock, expired warnings leave, and one state is re-derived per tick so all
+36 turn over inside two and a half minutes without recomputing the country every
+four seconds. A warning the platform issues itself goes straight into that feed —
+otherwise it could raise an alert and still report an older one as the newest thing
+that had happened.
 
-| | Source | Caption |
-|---|---|---|
-| 1 | A file you dropped on the card in the running app | your credit, on hover |
-| 2 | **The bundled photograph** — always loads, it is a data URI | permanent |
-| 3 | `assets/photos/<event-id>.jpg` in the unpacked build | your credit, on hover |
-| 4 | A verified NASA public-domain frame, where the record names one | permanent |
-| 5 | The bundled illustration in `src/scenes.js` | permanent — "Illustration — …" |
+The result is surfaced twice, in the two framings the two audiences need. Operators
+get *most severe now* and *newest warning* on **every** command screen, because
+someone reading the shelter list still needs to know the worst situation has moved
+to another state. The public portal gets the same live picture as *worst affected
+right now* — the four hardest-hit states, ranked, with the reader's own marked
+**you are here** — because a resident does not want a peak score, they want to know
+which places are worst and whether one of them is theirs.
 
-Steps 3–5 are unreachable in practice now that step 2 always succeeds; they stay
-because removing a photograph should degrade rather than blank the card. Step 3
-is skipped in the bundled builds, which have no folder beside them, and step 4 in
-the hosted build, whose CSP blocks external hosts.
+**The clock is an input, not a decoration.** A risk surface that opens with the
+same figures in February and in July is not live — it is a screenshot that
+animates. India's hazards are strongly seasonal and partly diurnal, and the
+platform knows what time it is, so the opening state is derived from that:
+flood and landslide peak in the southwest monsoon, cyclone in the post-monsoon
+Bay season, heat and forest fire before the monsoon breaks, lightning through
+the afternoon. Open it in November and Odisha leads on cyclone; open it in
+February and the country is quiet with Rajasthan and Gujarat on drought.
 
-Nothing depicts casualties.
+The words move with the figures, which is the part that is easy to get wrong.
+A state scoring 34 is *Monitored*, not "Flood + Landslide"; the authored Chamoli
+narrative is only told while Chamoli is actually in flood; an alert's severity,
+its headline wording and how recently it was issued all come from what the
+hazard is doing now, so no Extreme warning is ever issued for a quiet hazard and
+the public ticker does not paint a Minor advisory in the same crimson as an
+Extreme one. `test/seasonal.spec.mjs` asserts all of it across four dates.
 
-### Using AI-generated images
+With a backend attached none of this is consulted — the values come from the
+feeds. It is what makes the offline build honest about being live.
 
-No image model runs inside this page, and none was reachable from the build
-environment — the bundled artwork is *rendered* by `train/render_scenes.py`, not
-generated by one. If you want AI-generated frames instead, make them in whatever
-tool you prefer and bring them back: **Add photographs → Choose several at once**
-takes the whole set in one go and fills the empty cards in the order you picked
-them. Each card in that panel carries a ready-made prompt (`prompt` on each
-`RECORD` entry) written to match the hazard, the light and the framing the card
-needs. Anything you add wins over the bundled artwork and drops the illustration
-caption with it, so fill in the credit.
-
-Your own photograph wins over all of it. Two ways to add one:
-
-- **Drag a file onto any card** in the record carousel, or use **Add photographs** under it. The image is
-  downscaled in the browser (max 1400 px, JPEG 0.82 — a 2400×1400 frame lands around 66 KB), stored in
-  `localStorage`, and rendered immediately. It survives a reload. Nothing is uploaded anywhere; this is a
-  static page.
-- **Drop a file at `assets/photos/<event-id>.jpg`** in the unpacked build.
-
-The import panel asks for the **credit** in the same moment as the image, and marks a photograph
-*credit missing* until you fill it in — most freely-licensed photographs legally require attribution, and
-a credit box offered later is a credit box left empty. `assets/photos/README.txt` lists the Wikimedia
-Commons category for each of the six events.
-
-If browser storage is full or blocked, the panel says so and the photographs work for the session only.
-
-Nothing depicts casualties. The illustrations render the mechanism at the scale it operated on — a
-plume crossing a settlement line, a surge reaching inland, a slope losing its crown — because the
-freely licensed photography of these events is overwhelmingly of grieving families, and that is not
-what belongs on a card arguing about shelter arithmetic.
-
----
-
-## Reporting a disaster
-
-The public view carries **Report what you can see** — habitation, what kind of thing, a description,
-roughly when it was seen, and optionally how many people, a landmark and a callback number. The
-reporter gets a reference (`CR-0001`) and a receipt that says, in order: it arrived, here is the
-number to quote, and here is exactly what will and will not happen next.
-
-Three deliberate choices.
-
-**A report is an observation, not an input.** It never touches HEI, VCI, capacity, RUI or the
-assignment. It enters the unverified queue, and a named operator either confirms it — posting a
-`VERIFY` entry to the same ledger as a capacity commitment — or dismisses it with a reason. A
-dismissal that leaves no trace is indistinguishable from nobody having looked, so both are recorded.
-
-That restraint is the point. A system where anyone with a phone can move the numbers that decide who
-is evacuated first has an obvious attack, and in a real emergency it does not even need an attacker:
-panic, rumour and double-reporting do the same thing. Ten calls about one collapsed wall are one
-wall.
-
-**The emergency number sits above the button, not below it.** Someone reaching for a report form
-during a flood is looking for help, and a form that lets them believe help is coming when it is not
-is the most dangerous thing on the page. The panel, the form and the receipt all say plainly that
-this dispatches nobody, and give 112 and the control-room number.
-
-**Two clocks.** `capturedAt` is when they say they saw it; `receivedAt` is when it reached the
-system. The queue sorts by capture, because a citizen in a flood is exactly the person whose phone
-has no signal — the report describing the first wall to go can easily arrive after three describing
-what happened next, and sorting by receipt rebuilds the event backwards.
-
-Status is read back off the shared queue rather than copied, so a report the operator verifies
-updates in the citizen's own list with no syncing. A report you cannot follow is a report you send
-twice.
+**A stalled pipeline says so.** `orchestrator.tick_watchdog` distinguishes
+*never ran* from *stalled*, *lagging* and *healthy*, exports `PIPELINE_LAG`, and
+publishes `pipeline_health` to every open dashboard. `/readyz` fails once the
+pipeline is more than six risk intervals behind, so a load balancer pulls the
+instance rather than serving figures that have quietly stopped moving.
 
 ---
 
-## The do / do-not card carries symbols
-
-Every instruction on the public **If you are told to move** card is a pictogram
-*and* a sentence. Both, always.
-
-**Why symbols.** The district is multilingual and not uniformly literate, and
-the people who most need an evacuation instruction are the ones least likely to
-read a paragraph of it under pressure. A symbol is read before the sentence
-beside it, and by people who will never read the sentence at all.
-
-**Why the words stay.** Pictograms are not self-evident. A person and a wave
-means *do not wade* to someone who already knows that is the rule, and means
-*swimming* to someone who does not. Stripping the sentence to make the card look
-cleaner trades comprehension for tidiness on the one screen where that trade is
-least defensible. Every symbol is `aria-hidden`; the sentence is the accessible
-text.
-
-**The grammar** is the one people have already met on road signs and in
-factories, which is the whole point of borrowing it — green ring for *do*, red
-ring with a diagonal bar for *do not*. Inside a prohibition ring the symbol is
-near-black, not red: that is how ISO 7010 draws it, and the reason is legibility
-rather than tradition — a red glyph under a red bar merges into it. Ring, bar,
-heading and sentence encode the same thing four times over, because red/green is
-the commonest colour-vision deficiency there is and colour alone would carry none
-of it.
-
-All 32 symbols are drawn to one specification — 24×24 box, ~2px stroke, round
-caps, no fills — so they read as one set rather than as thirty-two decisions,
-and the pictogram key sits beside its sentence in `DOS` rather than being chosen
-at render time: which symbol belongs on *do not shelter at the toe of the slope*
-is a question about the instruction, and it belongs where it can be argued with.
-
-The card moved from the 340px side rail into the main column to make room for
-them; it is the most actionable thing on the public page and it was the most
-cramped.
-
----
-
-## What the code refuses to do
-
-Checked on every render and shown on the **Audit Ledger** screen:
-
-| | Invariant |
-|---|---|
-| I1 | No safe site is committed beyond its derived usable capacity. |
-| I2 | No population is allocated to a site whose own HEI exceeds the cutoff, however large that site is. |
-| I3 | No relocation order exists without a debited capacity allocation. |
-| I4 | The ledger is append-only; releases are compensating postings, never deletes. |
-| I5 | Every displayed residual reconciles to the posting history. |
-
-Alongside these: emergency mode cannot be exited while any population is unplaced; simulated data is
-labelled as simulated everywhere it appears and lives in a different object (`SIM`) from live values
-(`LIVE`); and all times come from the real system clock in `Asia/Kolkata`, never a simulated counter.
-
----
-
-## File layout
+## Repository
 
 ```
-index.html          shell, entry gate, overlay layers
-README.md           this file
-assets/photos/      drop event photographs here — see the README inside
-train/
-  train_forecast.py generates the history, fits the model, writes src/model.js
-  render_scenes.py  renders the six card illustrations, writes src/scenes.js
-  bundle_photos.py  crops and inlines the supplied photographs -> src/photos-bundled.js
-src/
-  styles.css        all styling; :root custom properties, no preprocessor
-  data.js           the simulated district — RAW INPUTS ONLY, never scores
-  engine.js         the decision model: HEI, VCI, capacity, RUI, ledger, solver
-  charts.js         seven hand-written inline-SVG charts on a 340×170 viewBox
-  india.js          real geometry for 36 states and UTs, 0 0 612 696
-  record.js         six real past disasters, cited — plus their SVG base art
-  reports.js        citizen reporting: capture vs receipt, refs, the unverified queue
-  photos-bundled.js GENERATED — the six supplied photographs as data URIs
-  pictograms.js     32 safety symbols for the public do / do-not card
-  scenes.js         GENERATED — six rendered illustrations as data URIs
-  photos.js         drag-and-drop photograph import, downscale, localStorage
-  map.js            inline-SVG district map, 0 0 1000 700 (1 unit = 100 m)
-  national.js       the India layer: declared vs derived, and the drill-down
-  views.js          every screen, through one page(title, subtitle, body) helper
-  panzoom.js        pan, zoom and hover inspection for any viewBox'd SVG
-  model.js          GENERATED — exported weights, metrics and reliability table
-  forecast.js       browser inference, contributions, trend, trajectory
-  rag.js            BM25 retrieval, computed-fact path, refusal, live adapter
-  actions.js        drawers, modals, coverflow, relief panel, palette, toasts, exports
-  app.js            bootstrap, routing, map levels, keyboard — loads last
+aapdasync/
+├── docker-compose.yml          api · worker · postgis · redis · frontend
+├── .env.example                every credential, with what it unlocks
+├── docs/                       the design package (§34)
+│   ├── 01-architecture.md      topology, failure posture, scaling path
+│   └── 10-data-sources.md      the only place a source URL may be asserted
+├── backend/
+│   ├── sql/                    PostGIS schema + indexes, idempotent
+│   └── app/
+│       ├── config.py           every URL and credential enters here
+│       ├── realtime.py         coalescing recompute bus
+│       ├── orchestrator.py     the live pipeline
+│       ├── worker.py           pipeline process entry point
+│       ├── ingestion/          one package per source, common contract
+│       ├── spatial/            H3 grid · quadtree D&C · KD-tree
+│       ├── features/           leakage-safe as-of feature builder
+│       ├── ml/                 training, calibration, registry, promotion gate
+│       ├── risk/ impact/ vulnerability/ priority/ capacity/ routing/ evacuation/
+│       ├── assistant/          BM25 retrieval + corpus, the assistant's contract
+│       ├── core/               security, hardening, logging, metrics, lockout
+│       └── api/ ws/            REST surface and WebSocket hub
+└── frontend/
+    ├── standalone/src/
+    │   ├── states.js           all 36 states/UTs, rosters and grid generation
+    │   ├── auth.js             the credential bridge into Command
+    │   ├── rag.js              the assistant: index, retrieval, grounded answers
+    │   ├── memorial.js         the record of past disasters, and relief routing
+    │   └── ui.js               accessibility, guided mode, map navigation
+    └── dist/aapdasync.html     single-file build
 ```
 
-`data.js` contains no scores. Ground motion, flood depth, slope susceptibility, plume fraction,
-housing typology, floor area, litres per day, toilet counts and road throughput go in; every number
-on every screen is derived from them at render time. Change an input and the whole chain moves —
-which is the point of the **Method** screen and the **Scenario Sandbox**.
+---
+
+## The algorithms (§14–§16, §18)
+
+| Where | Algorithm | Bound | Why this one |
+|---|---|---|---|
+| `spatial/quadtree.py` | Recursive quadrant subdivision | `T(n)=4T(n/4)+Θ(1) ⇒ Θ(n)` worst case, sublinear when pruning fires | Risk is spatially autocorrelated. Proving a quadrant uniform is cheap; the budget goes to quadrants that disagree with themselves. Measured prune rate ≈ 0.72 on a live monsoon tick. |
+| `priority/mergesort.py` | Merge sort | `T(n)=2T(n/2)+Θ(n) ⇒ Θ(n log n)`, all cases | Stability under a documented tie-break, so the evacuation queue does not reshuffle between ticks; an auditable comparison trace; no pathological case inside a 15-minute deadline. |
+| `spatial/nearest.py` | 2-d k-d tree | build `Θ(n log n)`, query `Θ(log n)` expected | Candidate generation for shelter selection, in microseconds, with no database round trip. Projected to metres — comparing degrees is subtly wrong north–south. |
+| `routing/graph.py` | Dijkstra (one-to-many), A\* (point-to-point) | `Θ((V+E) log V)` | One Dijkstra per zone costs less than A\* per shelter. The A\* heuristic is great-circle ÷ max speed: admissible and consistent, so the result is provably optimal. |
+
+Every bound above has a test that asserts it rather than asserting it in prose —
+see `tests/test_daa.py`.
 
 ---
 
-## Screens
+## Design commitments
 
-| Screen | What it answers |
+These are enforced in code and covered by tests, not stated as intent.
+
+0. **Every hazard names its real source, and its real fidelity.** Nine disasters,
+   each wired to a live feed: IMD/CWC/NCS/NRSC/INCOIS where credentials exist,
+   and Open-Meteo, GloFAS, USGS FDSN, GDACS and FIRMS where they do not. A
+   supplementary source is never relabelled as the authority it stands in for —
+   GloFAS discharge is not a CWC gauge stage, and the UI says which one it has.
+1. **A model prediction is never presented as a warning.** Every risk response
+   carries its attribution; official alerts live on a separate endpoint with the
+   issuing authority intact.
+2. **Stale is never presented as live.** Sources past their staleness window are
+   marked; every response carries `data_freshness`; the dashboard shows the age,
+   computed against the viewer's actual clock. A stopped pipeline fails `/readyz`
+   rather than continuing to serve its last figures as current.
+3. **No data is not zero risk.** A cell with no model output renders as *no data*
+   with a hatched fill — never as a safe green cell.
+4. **Exposure is a spatial overlay, not `p × population`.** 8 200 people in a cell
+   12 m above the drainage line are not 5 250 people at risk.
+5. **Physical capacity is not operational capacity.** A hall rated 5 000 with
+   4 200 inside and one nurse does not have 800 usable places — and the platform
+   names which constraint binds, so you know whether to send a tanker or open
+   another hall.
+6. **Priority is reconstructible.** The displayed contributions sum to the score
+   exactly; `PriorityEngine.verify` raises if they ever diverge.
+7. **No invented endpoints.** A credentialed source with no credential reports
+   `NOT_CONFIGURED` and does not call anything.
+8. **One failed source never takes down the platform.**
+9. **An interaction costs what it is worth.** A small movement produces a small
+   response and nothing else: the wheel over the map scrolls the page unless Ctrl
+   is held, a two-pixel twitch does not pan, one finger on a phone always scrolls,
+   rotation and pitch are not offered at all, and a pan that moved does not also
+   open what it ended on. Asserted in `test/interaction.spec.mjs`.
+10. **A repaint never takes the reader's place.** Nothing rebuilds the screen on a
+   timer while somebody is scrolling, dragging or typing; what they had written is
+   still there afterwards, and so is where they were on the page.
+11. **A photograph without a credit and a licence is not displayed** — by the build
+   or by the browser drop-in path — and a credit that has not been checked against
+   its source says so on the image, not only in the build log.
+
+---
+
+## Security
+
+| Control | Where |
 |---|---|
-| **District Deck** | The Deficit Clock, the India → district map, the live timeline, the top of the queue. |
-| **Red Zones** | Which habitations are red, and why — every score opens to its derivation. |
-| **Field Reports** | Everything the district has been told but not confirmed — and who confirmed what. |
-| **Carrying Capacity** | What each site can actually take, and the one constraint deciding it. |
-| **Relocation Queue** | Who moves, how urgently, to exactly which site — and who has nowhere. |
-| **Matching Engine** | The assignment, the cost function, and "why this site and not another". |
-| **Movement & Convoys** | Whether the fleet can finish before the hazard lands. |
-| **Scenario Sandbox** | Six counterfactuals, each re-deriving the whole chain. |
-| **Audit Ledger** | Every posting, every operator, every invariant. |
-| **Analytics** | Seven charts, including the coupling scatter that shows the central claim. |
-| **Method** | The model written out, so an officer can disagree with an assumption. |
-| **Public View** | The record, the national map, what was decided for a habitation, and where to go. |
+| Boot refuses default secrets, debug or wide CORS in prod | `core/hardening.py: verify_configuration` |
+| Command is unreachable without a credential — no toggle, no URL, no console call | `src/auth.js`, `views.js: go/render` |
+| Per-account lockout with capped backoff, plus a per-address limit that catches enumeration | `core/lockout.py: LoginGuard` |
+| Step-up re-authentication before any write other people will see | `core/lockout.py: StepUp`, `routes.py: require_step_up` |
+| Five roles, scope-checked per shelter and per district | `core/security.py` |
+| Sliding-window rate limits, tightest on login | `core/hardening.py: RateLimitMiddleware` |
+| CSP, HSTS, frame-deny, no-store on API responses | `SecurityHeadersMiddleware` |
+| HMAC-signed push ingress with replay protection | `verify_push_signature` |
+| WebSocket topics scoped by role and district | `main.py: _scope_topics` |
+| Argon2 password hashing, constant-time verification | `core/security.py` |
+| Append-only audit log with real operator identity | `audit_log` table |
+| Parameterised SQL throughout; no string-built queries | all of `app/` |
+| Control-character and bidi-override stripping on free text | `clean_text` |
+| Non-root container, multi-stage build, no build toolchain at runtime | `backend/Dockerfile` |
 
-## Keyboard
-
-`Ctrl K` command palette · `Ctrl E` emergency mode · `Ctrl D` dispatch wizard ·
-`Ctrl ⇧ A` commit plan to ledger · `←` `→` move through the record ·
-`Esc` close drawer, modal or palette. On the map: scroll to zoom, drag to pan, double-click to zoom
-out, hover for figures.
-
-Every interactive element has a visible `:focus-visible` ring. Map markers are keyboard-focusable
-and activate on Enter or Space with descriptive `aria-label`s. `prefers-reduced-motion` is
-respected. Priority is encoded by **shape and number as well as colour** — colour is never the only
-channel. Breakpoints at 1240 px, 1080 px and 720 px.
+`tests/test_security.py` covers each of these, including replay, tampering,
+privilege escalation and cross-tenant access.
 
 ---
 
-## Accessibility and honesty notes
+## Tests
 
-- The `PROTOTYPE` badge and the "simulated data" line appear on the entry gate and on every screen.
-- Field reports are **unverified until an operator marks otherwise**, and the state is shown.
-- Exports carry `SIMULATED` in the filename and a `_warning` field or column in the payload.
-- Separate timestamps are kept for last sync, last compute and last verification; each moves only
-  when that event actually happens.
-- Operational console strings stay in English by design: mixed-script status labels in a command
-  console are a legibility risk under stress. The public-facing view is the surface that should be
-  bilingual, and is the right place to add Hindi.
+```bash
+cd backend && python -m pytest tests/ -q      # 213 tests
+cd frontend/standalone && node test/ui.spec.mjs        # 49 browser checks
+                          node test/live-feed.spec.mjs # the feed stays current
+                          node test/map-zoom.spec.mjs  # the map fills its box
+                          node test/interaction.spec.mjs # scroll, map gestures, slideshow, the report form
+                          node test/photos.spec.mjs    # photographs and the credit rule
+                          node test/navigation.spec.mjs # every screen reachable by clicking
+```
+
+The browser suites drive the built single-file dashboard in real Chromium and
+assert behaviour rather than markup — see `frontend/standalone/test/README.md`.
+
+They found nine real bugs during development, all fixed: the quadtree could prune
+a hotspot narrower than its sampling stride; priority contributions did not
+reconstruct the displayed score; the rate limiter grew one entry per client
+forever; the recompute bus waited a full second on an item ready in fifty
+milliseconds; a public source needing a free key reported itself configured when
+it could not call anything; the derived polling plan would have hammered a
+donated JRC service every two minutes because one impatient hazard asked it to;
+the assistant's absolute relevance floor silently refused every short question,
+because BM25 scales with query length and "what should I do in a flood" has one
+content word once the stopwords are gone; its intent filter kept the model
+registry ahead of the safety guidance whenever only one better passage survived;
+its extractive step reordered safety instructions by keyword overlap, which
+put the third instruction first and dropped the one that saves you; the public
+map's SVG had no sizing rule of its own, so it rendered nearly a thousand pixels
+tall inside a 460-pixel box and the country came out as a clipped ribbon; and the
+national alert feed was built once at boot and never touched again, so the strip
+labelled *newest warning · 13 minutes ago* still said thirteen minutes an hour
+later — stale data presented as live, in the one component whose whole job is to
+show what is latest. A design pass then found four more: every past-disaster scene
+shared one set of SVG gradient ids, so all ten resolved to the first one's and the
+whole gallery wore Latur's night sky; three new CSS class names collided with
+existing ones (`.sl`, `.stage`, `.term`), silently restyling unrelated components;
+a red **0** sat in the "critical band" tile, colouring good news as an alarm; and the
+shelter banner asserted "water is the binding constraint at 0 shelters" whatever
+the real constraint was.
+
+An interaction pass then found six more, all of which made the application feel
+unstable rather than look wrong:
+
+- **The pipeline replaced the whole page every four seconds.** `render()` rewrote
+  `main.innerHTML` on a timer, which threw away the element holding the scroll
+  position — a reader halfway down the public portal was returned to the top, mid
+  sentence, forever. It is most of what "the whole site feels too sensitive" was.
+- **An incident report could not be filed at all.** The same loop regenerated the
+  open drawer, so the description someone was typing was deleted under them before
+  they could reach Submit.
+- **Every report was filed against the wrong zone.** `S.cells[0]`, whatever the
+  person said about where they were, and report ids were drawn from the same range
+  as the simulated feed's, so two different reports could carry one identifier.
+- **The map took the page's scroll.** A wheel anywhere over it called
+  `preventDefault` and zoomed 18% per event; on a trackpad, which emits thirty
+  events a second, the country left the screen while someone was trying to read
+  past it.
+- **Dragging the map opened whatever you let go of.** A pan ended with a click on
+  a state or a cell, so the map could not be moved without also being navigated.
+- **Pausing the slideshow rewrote the button under the cursor**, which made the
+  browser rebuild its hover chain, which fired `mouseenter` again, which paused it
+  again — a loop that repainted several times a frame and destroyed the mousedown
+  target before the mouseup, so the play button could never be clicked.
+
+And three that only appeared on a small screen: the header ladder stopped at
+1000 px and below that the sign-in button and the alert bell were simply off the
+right of a phone; `1fr` floors at min-content, so the public grid stayed 639 px
+wide inside a 390 px viewport; and a faded-out map tooltip, still laid out at the
+last cursor position, made the document wider than the viewport with nothing
+visible in it.
 
 ---
 
-## Limits
+## Photographs
 
-This is one district, one afternoon, and invented numbers. In particular:
+**Six of the ten past-disaster slides carry a photograph; the other four are
+rendered scenes and say so on their face.** The scenes are each a specific place at
+a specific hour, built the way a landscape painter builds one: a graded sky, ridges
+that lose contrast with distance, haze, directional light and grain. They are
+deliberately sober. These are events in which thousands of people died; the scenes
+show the ground and the weather, never the dying — and a supplied photograph that
+breaks that rule is not shipped either. The Latur 1993 photograph offered for this
+build shows a casualty in the rubble, so that slide keeps its illustration; the
+reason is recorded in `credits.json` rather than left to be rediscovered.
 
-- The assignment is a deterministic greedy seed plus a bounded local-improvement pass, not a proven
-  optimum. It is fast, explainable and stable under small input changes, which matters more here
-  than the last few percent of cost — but it is not min-cost-flow.
-- Travel time is a straight-line distance with a per-block terrain factor, not a routed network.
-- The demand model (evacuation fraction from HEI, shelter dependency from VCI) is calibrated against
-  general observed behaviour, not against this district's history — because this district does not
-  exist. Real deployment needs local calibration and would be wrong without it.
-- Capacity stress uses a proportional-share model of contested capacity. That is a modelling choice,
-  not a fact; a different sharing rule gives different rankings, and the Method screen says so.
-- No credential is checked anywhere. Production needs SSO, role-based authorisation and an immutable
-  audit trail; the ledger here is append-only in memory only and is lost on reload.
-- **State boundaries on the national map are illustrative and not authoritative.** The geometry
-  predates the 2019 reorganisation: Ladakh is not shown separately from Jammu and Kashmir, and Dadra
-  and Nagar Haveli and Daman and Diu are still two entries. Do not use this map for any purpose that
-  depends on a boundary being correct.
-- The national layer's per-state figures are invented. Only the treatment of them — declared, not
-  derived, and never totalled together with computed figures — is meant to be taken seriously.
+Where the photographs appear, and why each placement earns its space:
+
+| Place | What it does |
+|---|---|
+| **Public landing page, hero** | A 21:9 slideshow above the fold, one photograph per event with the sentence that event forced the country to learn, and a way through to the full account. Autoplay at 6.5 s, pausing the moment anybody touches it. |
+| **What we learned, gallery** | The existing coverflow. A slide with a photograph shows its credit; a slide without says it is an illustration. |
+| **What to do, hazard cards** | The Indian event that hazard is known by, captioned. "Sixty centimetres of moving water will carry a car" is a sentence people nod at; a photograph of a flooded Chennai street is the same sentence in a form that argues back. |
+| **District Command** | Nothing. An operational screen is not the place for a picture. |
+
+Every image is a WebP capped at 1280 px on its long side and to 120 KB, chosen by
+giving up pixels before quality — six photographs come to 464 KB before base64.
+Each carries its intrinsic width and height and its dominant colour, so the box is
+its final size and its final colour before a byte of it has decoded: no layout
+shift, and no flash from empty to picture. Only the visible slide and its two
+neighbours are ever decoded.
+
+Two ways to add more. Both enforce the same rule — **credit and licence are
+required, or the image is not displayed.**
+
+**In the browser, immediately.** Open *What we learned*, press **Add a photo** on any
+slide, drop the image in and type the credit. It is resized to 1400 px, stored in that
+browser via IndexedDB and shown at once. *Export credits.json* then writes out exactly
+what the build needs, so anything added this way can be promoted.
+
+**In the build, permanently.**
+
+```bash
+cp kedarnath.jpg frontend/standalone/assets/photos/kedar13.jpg
+$EDITOR frontend/standalone/assets/photos/credits.json    # credit + licence
+cd frontend/standalone && node build.js
+```
+
+The build inlines each image as a data URI, prints how many it embedded, and **names
+any it skipped for a missing credit**. Event ids: `latur`, `odisha99`, `tsunami04`,
+`mumbai05`, `kedar13`, `hw15`, `chennai15`, `kerala18`, `josh23`, `wayanad24`.
+
+`credits.json` also takes `verified`. Set it to `false` when the credit has been
+recorded from a plausible source but not checked against the file page itself: the
+photograph still renders, its caption carries a visible **attribution unverified**
+mark, and the build prints a reminder naming every entry still in that state. Five
+of the six shipped photographs are currently marked this way and are waiting on
+their Wikimedia Commons file pages being opened and the author and licence version
+written down exactly.
+
+Usual sources for imagery you may publish: public-domain Government of India releases
+(PIB, ISRO/NRSC, NDRF), NASA, NOAA, and Creative Commons photographs on Wikimedia Commons.
 
 ---
 
-## Attribution
+## Status and limits
 
-State geometry from **[@svg-maps/india](https://www.npmjs.com/package/@svg-maps/india)**, licensed
-**CC BY 4.0**, converted to absolute polylines and thinned to 0.2 viewBox units.
+Before any real deployment:
 
-Historical figures in `src/record.js` are as reported by:
+- Confidence percentages must be **calibrated against Indian outcomes** before an
+  operator sees them. The isotonic wrapper is in place; it needs real history.
+- Operator identities must come from the state's own directory, not a local table.
+- The road graph is OSM. Where a district has an authoritative PWD network, use it.
+- Population is WorldPop until Census ward figures are available.
+- A predicted high-risk cell does not mean every point inside it is affected.
+- The platform is decision support. It does not replace trained responder
+  judgement, and no screen in it should imply otherwise.
 
-- [Bhopal disaster](https://en.wikipedia.org/wiki/Bhopal_disaster)
-- [1999 Odisha cyclone](https://en.wikipedia.org/wiki/1999_Odisha_cyclone)
-- [2001 Gujarat earthquake](https://en.wikipedia.org/wiki/2001_Gujarat_earthquake)
-- [2013 North India floods](https://en.wikipedia.org/wiki/2013_North_India_floods)
-- [2018 Kerala floods](https://en.wikipedia.org/wiki/2018_Kerala_floods)
-- [2021 Uttarakhand flood](https://en.wikipedia.org/wiki/2021_Uttarakhand_flood)
+---
 
-Everything else in this repository is simulated.
+## Data sources
+
+Every source, its real access route and what it needs: **`docs/10-data-sources.md`**.
+That file is the only place a source URL may be asserted; connectors read theirs
+from configuration.
+
+Sources: [IMD](https://mausam.imd.gov.in/responsive/apis.php) ·
+[NDMA SACHET](https://sachet.ndma.gov.in/CapFeed) ·
+[CWC](https://cwc.gov.in/flood-forecasting-hydrological-observation) ·
+[Bhuvan / NRSC](https://bhuvan.nrsc.gov.in/) ·
+[INCOIS ERDDAP](https://erddap.incois.gov.in/erddap/) ·
+[NCS](https://seismo.gov.in/data-portal) ·
+[USGS FDSN](https://earthquake.usgs.gov/fdsnws/event/1/) ·
+[Open-Meteo](https://open-meteo.com/en/docs) ·
+[OSM Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API) ·
+[NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/) ·
+[OpenTopography](https://portal.opentopography.org/apidocs/) ·
+[WorldPop](https://www.worldpop.org/methods/)

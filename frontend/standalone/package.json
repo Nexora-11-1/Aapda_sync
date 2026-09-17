@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "world-atlas": "^2.0.2"
+  }
+}

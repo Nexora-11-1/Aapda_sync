@@ -1,0 +1,142 @@
+# AapdaSync — production compose.
+# Bring the stack up:  cp .env.example .env && docker compose up -d --build
+# The API waits for a healthy database; the worker waits for a healthy API.
+
+name: aapdasync
+
+x-backend-env: &backend-env
+  AAPDA_ENVIRONMENT: ${AAPDA_ENVIRONMENT:-prod}
+  AAPDA_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aapda}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-aapdasync}
+  AAPDA_DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aapda}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-aapdasync}
+  AAPDA_REDIS_URL: redis://cache:6379/0
+  AAPDA_JWT_SECRET: ${AAPDA_JWT_SECRET:?set AAPDA_JWT_SECRET in .env}
+  AAPDA_CORS_ORIGINS: '["${PUBLIC_ORIGIN:-http://localhost:3000}"]'
+  AAPDA_MVP_STATE_CODE: ${AAPDA_MVP_STATE_CODE:-UT}
+  # credentials — absent keys leave a source NOT_CONFIGURED, which is a
+  # supported state, not a failure (see docs/10-data-sources.md)
+  AAPDA_SOURCE_IMD_API_KEY: ${IMD_API_KEY:-}
+  AAPDA_SOURCE_IMD_ENDPOINTS: ${IMD_ENDPOINTS:-}
+  AAPDA_SOURCE_SACHET_FEED_PATH: ${SACHET_FEED_PATH:-}
+  AAPDA_SOURCE_CWC_API_KEY: ${CWC_API_KEY:-}
+  AAPDA_SOURCE_CWC_STATIONS_PATH: ${CWC_STATIONS_PATH:-}
+  AAPDA_SOURCE_NRSC_WMS_PATH: ${NRSC_WMS_PATH:-}
+  AAPDA_SOURCE_FIRMS_API_KEY: ${FIRMS_MAP_KEY:-}
+  AAPDA_SOURCE_OPENTOPO_API_KEY: ${OPENTOPO_API_KEY:-}
+  AAPDA_WORLDPOP_RASTER: /data/worldpop/ind_ppp_constrained.tif
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aapda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-aapdasync}
+      # India runs on IST; keeping the server in UTC and converting at the edge
+      # is the only way replay and late-sync stay unambiguous.
+      TZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aapda} -d ${POSTGRES_DB:-aapdasync}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    shm_size: 512mb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_parallel_workers_per_gather=2
+      - -c
+      - random_page_cost=1.1
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      AAPDA_RUN_SCHEDULER: "false"      # the worker owns the pipeline
+    depends_on:
+      db: { condition: service_healthy }
+      cache: { condition: service_healthy }
+    volumes:
+      - models:/var/lib/aapdasync/models
+      - ./data:/data:ro
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz',timeout=3).status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits: { memory: 2g }
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # One worker owns ingestion and the analysis pipeline. Running the
+    # scheduler in every API replica would multiply every external API call
+    # by the replica count — which is how you get rate-limited by IMD.
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *backend-env
+      AAPDA_RUN_SCHEDULER: "true"
+    depends_on:
+      db: { condition: service_healthy }
+      cache: { condition: service_healthy }
+    volumes:
+      - models:/var/lib/aapdasync/models
+      - ./data:/data:ro
+    deploy:
+      resources:
+        limits: { memory: 3g }
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  pgdata:
+  redisdata:
+  models:

@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Team AapdaSync
+Copyright (c) 2026 Nexora and the AapdaSync contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
---------------------------------------------------------------------------------
-THIS LICENCE COVERS THE CODE ONLY. See NOTICE.md — the bundled photographs and
-the state geometry are third-party material on different terms, and the MIT
-grant above does not extend to them.
+---
+
+This licence covers the source code only. It does not cover the bundled
+photographs or the map geometry, which carry their own terms. See NOTICE.md.
